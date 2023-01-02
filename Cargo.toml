@@ -1,0 +1,25 @@
+[package]
+name = "gps"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = true
+opt-level='z'
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["full"] }
+
+[dependencies]
+gpx="*"
+itertools="*"
+lazy_static="*"
+osmio={version="*", optional=true}
+xml-rs="*"
+reqwest = "^0.11"
+wasm-bindgen-futures = "0.4.12"
+wasm-bindgen = "0.2.77"
+# space-time = "0.2.0"
