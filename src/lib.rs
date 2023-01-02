@@ -138,15 +138,15 @@ pub fn group_nodes_in_squares(
     bbox: (f64, f64, f64, f64),
     side: f64,
 ) -> (
-    Vec<(f64, f64)>,       // nodes stored in squares but flattened
-    HashMap<usize, usize>, // osm node id -> new index in vec
-    Vec<usize>,            // start index of each first node in each bucket
-    usize,                 // number of squares per line
+    Vec<(f64, f64)>, // nodes stored in squares but flattened
+    Vec<usize>,      // new indices in vec
+    Vec<usize>,      // start index of each first node in each bucket
+    usize,           // number of squares per line
 ) {
     let (xmin, ymin, xmax, ymax) = bbox;
     let mut squares: HashMap<(u32, u32), Vec<(f64, f64)>> = HashMap::new();
-    let mut ids_semi_translation = HashMap::new();
-    for (id, &(x, y)) in nodes.iter().enumerate() {
+    let mut ids_semi_translation = Vec::new();
+    for &(x, y) in nodes.iter() {
         if x < xmin || x > xmax || y < ymin || y > ymax {
             continue;
         }
@@ -156,7 +156,7 @@ pub fn group_nodes_in_squares(
         );
         let v = squares.entry(square_id).or_default();
         v.push((x, y));
-        ids_semi_translation.insert(id, (square_id, v.len()));
+        ids_semi_translation.push((square_id, v.len()));
     }
     let mut nodes: Vec<(f64, f64)> = Vec::new();
     let mut first_ones = Vec::new();
@@ -167,16 +167,11 @@ pub fn group_nodes_in_squares(
         first_ones.push(nodes.len());
         nodes.extend(squares.get(&id).into_iter().flatten());
     }
-    eprintln!(
-        "we have {} squares, {} per line",
-        first_ones.len(),
-        squares_per_line
-    );
-    let mut ids_translation = HashMap::new();
-    for (osm_id, ((square_y, square_x), inner_pos)) in ids_semi_translation {
+    let mut ids_translation = Vec::new();
+    for ((square_y, square_x), inner_pos) in ids_semi_translation {
         let square_index = square_y as usize * squares_per_line + square_x as usize;
         let real_id = first_ones[square_index] + inner_pos;
-        ids_translation.insert(osm_id, real_id);
+        ids_translation.push(real_id);
     }
     (nodes, ids_translation, first_ones, squares_per_line)
 }
@@ -200,4 +195,87 @@ pub fn rename_nodes(
         }
     }
     renamed_nodes
+}
+
+pub fn cut_ways_at_squares(
+    nodes: &mut Vec<(f64, f64)>,
+    ways: &mut HashMap<usize, Vec<usize>>,
+    grid_origin: (f64, f64),
+    side: f64,
+) {
+    for way in ways.values_mut() {
+        cut_way_at_squares(nodes, way, grid_origin, side)
+    }
+}
+
+pub fn cut_way_at_squares(
+    nodes: &mut Vec<(f64, f64)>,
+    way: &mut Vec<usize>,
+    grid_origin: (f64, f64),
+    side: f64,
+) {
+    // we assume ways never intersect between their endpoints
+
+    let (xmin, ymin) = grid_origin;
+    let mut new_way = Vec::new();
+    for (i1, i2) in way.iter().copied().tuples() {
+        new_way.push(i1);
+        let (x1, y1) = nodes[i1];
+        let (x2, y2) = nodes[i2];
+
+        let mut new_nodes = grid_coordinates_between(xmin, x1, x2, side)
+            .map(|x| vertical_segment_intersection(x1, y1, x2, y2, x))
+            .chain(
+                grid_coordinates_between(ymin, y1, y2, side)
+                    .map(|y| horizontal_segment_intersection(x1, y1, x2, y2, y)),
+            )
+            .collect::<Vec<_>>();
+        new_nodes.sort_unstable_by(|(xa, ya), (xb, yb)| {
+            let da = (xa - x1) * (xa - x1) + (ya - y1) * (ya - y1);
+            let db = (xb - x1) * (xb - x1) + (yb - y1) * (yb - y1);
+            da.partial_cmp(&db).unwrap()
+        });
+        for new_node in new_nodes.into_iter().dedup() {
+            let new_id = nodes.len();
+            new_way.push(new_id);
+            nodes.push(new_node);
+        }
+    }
+    new_way.extend(way.last().copied());
+    *way = new_way
+}
+
+fn horizontal_segment_intersection(x1: f64, y1: f64, x2: f64, y2: f64, y: f64) -> (f64, f64) {
+    let fraction_of_segment = (y - y1) / (y2 - y1);
+    let x = x1 + fraction_of_segment * (x2 - x1);
+    (x, y)
+}
+
+fn vertical_segment_intersection(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> (f64, f64) {
+    let fraction_of_segment = (x - x1) / (x2 - x1);
+    let y = y1 + fraction_of_segment * (y2 - y1);
+    (x, y)
+}
+
+// loop on all coordinates c intersecting grid at min + side * alpha
+// such that start < c < end
+fn grid_coordinates_between(
+    min: f64,
+    mut start: f64,
+    mut end: f64,
+    side: f64,
+) -> impl Iterator<Item = f64> {
+    if start > end {
+        std::mem::swap(&mut start, &mut end);
+    }
+
+    let start_cell = (start - min) / side;
+    let above_start_cell = start_cell.ceil();
+    let real_start_cell = if start_cell == above_start_cell {
+        (above_start_cell + 1.) as u32
+    } else {
+        above_start_cell as u32
+    };
+    let end_cell = ((end - min) / side).ceil() as u32;
+    (real_start_cell..end_cell).map(move |alpha| min + alpha as f64 * side)
 }
