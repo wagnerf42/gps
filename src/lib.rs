@@ -3,6 +3,9 @@ use std::collections::HashMap;
 
 use xml::{reader::XmlEvent, EventReader};
 
+mod simplify;
+pub use simplify::Node;
+
 pub async fn request(
     xmin: f64,
     ymin: f64,
@@ -33,7 +36,7 @@ pub async fn request(
 pub fn parse_osm_xml(
     xml: &str,
 ) -> (
-    HashMap<usize, (f64, f64)>,
+    HashMap<usize, Node>,
     HashMap<usize, Vec<usize>>,
     HashMap<String, Vec<usize>>,
 ) {
@@ -105,7 +108,7 @@ pub fn parse_osm_xml(
                     if let Some(lon) = lon {
                         if let Some(lat) = lat {
                             if let Some(id) = id {
-                                current_node = Some((id, lon, lat))
+                                current_node = Some((id, Node::new(lon, lat)))
                             }
                         }
                     }
@@ -118,8 +121,8 @@ pub fn parse_osm_xml(
                     }
                 }
                 if name.local_name == "node" {
-                    if let Some((id, lon, lat)) = current_node.take() {
-                        nodes.insert(id, (lon, lat));
+                    if let Some((id, node)) = current_node.take() {
+                        nodes.insert(id, node);
                     }
                 }
             }
@@ -133,55 +136,86 @@ pub fn parse_osm_xml(
     (nodes, ways, streets)
 }
 
+pub fn group_segments_in_squares(
+    nodes: &Vec<Node>,
+    ways: &HashMap<usize, Vec<usize>>,
+    first_square_coordinates: (f64, f64),
+    squares_per_line: usize,
+    side: f64,
+) -> (Vec<((u8, u8), (u8, u8))>, Vec<usize>) {
+    let mut squares: HashMap<(usize, usize), Vec<(u8, u8)>> = HashMap::new();
+    ways.values()
+        .flat_map(|way| way.iter().tuple_windows())
+        .map(|(id1, id2)| (nodes[*id1], nodes[*id2]))
+        .map(|(n1, n2)| {
+            let xk1 = n1.x / side;
+            let yk1 = n1.y / side;
+
+            todo!()
+        });
+    todo!()
+}
+
 pub fn group_nodes_in_squares(
-    nodes: &[(f64, f64)],
-    bbox: (f64, f64, f64, f64),
+    nodes: &mut Vec<Node>,
+    ways: &mut HashMap<usize, Vec<usize>>,
     side: f64,
 ) -> (
-    Vec<(f64, f64)>, // nodes stored in squares but flattened
-    Vec<usize>,      // new indices in vec
-    Vec<usize>,      // start index of each first node in each bucket
-    usize,           // number of squares per line
+    Vec<usize>, // start index of each first node in each bucket
+    usize,      // number of squares per line
+    (f64, f64), // coordinates of first square
 ) {
-    let (xmin, ymin, xmax, ymax) = bbox;
-    let mut squares: HashMap<(u32, u32), Vec<(f64, f64)>> = HashMap::new();
-    let mut ids_semi_translation = Vec::new();
-    for &(x, y) in nodes.iter() {
-        if x < xmin || x > xmax || y < ymin || y > ymax {
-            continue;
+    // put every point in it's square
+    let mut squares: HashMap<(usize, usize), Vec<(usize, Node)>> = HashMap::new();
+    for (old_id, &n) in nodes.iter().enumerate() {
+        let square_id = ((n.y / side).floor() as usize, (n.x / side).floor() as usize);
+        squares.entry(square_id).or_default().push((old_id, n));
+    }
+
+    let mut squares_keys = squares.keys().copied().collect::<Vec<_>>();
+    squares_keys.sort_unstable();
+    let (min_x, max_x) = squares_keys
+        .iter()
+        .copied()
+        .map(|(_, x)| x)
+        .minmax()
+        .into_option()
+        .unwrap();
+    let min_y = squares_keys[0].0;
+    let max_y = squares_keys.last().map(|(y, _)| *y).unwrap();
+    let mut nodes_in_squares = Vec::with_capacity(nodes.len());
+    let mut squares_starts = Vec::with_capacity((max_y + 1 - min_y) * (max_x + 1 - min_x));
+    let mut ids_translations = HashMap::with_capacity(nodes.len());
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let square_content = squares.get(&(y, x));
+            squares_starts.push(nodes_in_squares.len());
+            for (old_id, node) in square_content.into_iter().flatten().copied() {
+                let new_id = nodes_in_squares.len();
+                nodes_in_squares.push(node);
+                ids_translations.insert(old_id, new_id);
+            }
         }
-        let square_id = (
-            ((y - ymin) / side).floor() as u32,
-            ((x - xmin) / side).floor() as u32,
-        );
-        let v = squares.entry(square_id).or_default();
-        v.push((x, y));
-        ids_semi_translation.push((square_id, v.len()));
     }
-    let mut nodes: Vec<(f64, f64)> = Vec::new();
-    let mut first_ones = Vec::new();
-    let x_keys = 0..=(((xmax - xmin) / side).floor() as u32);
-    let y_keys = 0..=(((ymax - ymin) / side).floor() as u32);
-    let squares_per_line = ((xmax - xmin) / side).floor() as usize + 1;
-    for id in y_keys.cartesian_product(x_keys) {
-        first_ones.push(nodes.len());
-        nodes.extend(squares.get(&id).into_iter().flatten());
+    for way in ways.values_mut() {
+        for old_id in way {
+            *old_id = ids_translations[old_id];
+        }
     }
-    let mut ids_translation = Vec::new();
-    for ((square_y, square_x), inner_pos) in ids_semi_translation {
-        let square_index = square_y as usize * squares_per_line + square_x as usize;
-        let real_id = first_ones[square_index] + inner_pos;
-        ids_translation.push(real_id);
-    }
-    (nodes, ids_translation, first_ones, squares_per_line)
+    std::mem::swap(nodes, &mut nodes_in_squares);
+    (
+        squares_starts,
+        max_x + 1 - min_x,
+        (min_x as f64 * side, min_y as f64 * side),
+    )
 }
 
 // convert osm nodes ids to smaller integers (from 0 to nodes number)
 // and update ways accordingly
 pub fn rename_nodes(
-    nodes: HashMap<usize, (f64, f64)>,
+    nodes: HashMap<usize, Node>,
     ways: &mut HashMap<usize, Vec<usize>>,
-) -> Vec<(f64, f64)> {
+) -> Vec<Node> {
     let mut new_ids = HashMap::new();
     let mut renamed_nodes = Vec::new();
     for way in ways.values_mut() {
@@ -198,41 +232,34 @@ pub fn rename_nodes(
 }
 
 pub fn cut_ways_at_squares(
-    nodes: &mut Vec<(f64, f64)>,
+    nodes: &mut Vec<Node>,
     ways: &mut HashMap<usize, Vec<usize>>,
-    grid_origin: (f64, f64),
     side: f64,
 ) {
     for way in ways.values_mut() {
-        cut_way_at_squares(nodes, way, grid_origin, side)
+        cut_way_at_squares(nodes, way, side)
     }
 }
 
-pub fn cut_way_at_squares(
-    nodes: &mut Vec<(f64, f64)>,
-    way: &mut Vec<usize>,
-    grid_origin: (f64, f64),
-    side: f64,
-) {
+pub fn cut_way_at_squares(nodes: &mut Vec<Node>, way: &mut Vec<usize>, side: f64) {
     // we assume ways never intersect between their endpoints
 
-    let (xmin, ymin) = grid_origin;
     let mut new_way = Vec::new();
     for (i1, i2) in way.iter().copied().tuples() {
         new_way.push(i1);
-        let (x1, y1) = nodes[i1];
-        let (x2, y2) = nodes[i2];
+        let n1 = nodes[i1];
+        let n2 = nodes[i2];
 
-        let mut new_nodes = grid_coordinates_between(xmin, x1, x2, side)
-            .map(|x| vertical_segment_intersection(x1, y1, x2, y2, x))
+        let mut new_nodes = grid_coordinates_between(n1.x, n2.x, side)
+            .map(|x| vertical_segment_intersection(&n1, &n2, x))
             .chain(
-                grid_coordinates_between(ymin, y1, y2, side)
-                    .map(|y| horizontal_segment_intersection(x1, y1, x2, y2, y)),
+                grid_coordinates_between(n1.y, n2.y, side)
+                    .map(|y| horizontal_segment_intersection(&n1, &n2, y)),
             )
             .collect::<Vec<_>>();
-        new_nodes.sort_unstable_by(|(xa, ya), (xb, yb)| {
-            let da = (xa - x1) * (xa - x1) + (ya - y1) * (ya - y1);
-            let db = (xb - x1) * (xb - x1) + (yb - y1) * (yb - y1);
+        new_nodes.sort_unstable_by(|na, nb| {
+            let da = na.squared_distance_between(&n1);
+            let db = nb.squared_distance_between(&n1);
             da.partial_cmp(&db).unwrap()
         });
         for new_node in new_nodes.into_iter().dedup() {
@@ -245,37 +272,32 @@ pub fn cut_way_at_squares(
     *way = new_way
 }
 
-fn horizontal_segment_intersection(x1: f64, y1: f64, x2: f64, y2: f64, y: f64) -> (f64, f64) {
-    let fraction_of_segment = (y - y1) / (y2 - y1);
-    let x = x1 + fraction_of_segment * (x2 - x1);
-    (x, y)
+fn horizontal_segment_intersection(n1: &Node, n2: &Node, y: f64) -> Node {
+    let fraction_of_segment = (y - n1.y) / (n2.y - n1.y);
+    let x = n1.x + fraction_of_segment * (n2.x - n1.x);
+    Node::new(x, y)
 }
 
-fn vertical_segment_intersection(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> (f64, f64) {
-    let fraction_of_segment = (x - x1) / (x2 - x1);
-    let y = y1 + fraction_of_segment * (y2 - y1);
-    (x, y)
+fn vertical_segment_intersection(n1: &Node, n2: &Node, x: f64) -> Node {
+    let fraction_of_segment = (x - n1.x) / (n2.x - n1.x);
+    let y = n1.y + fraction_of_segment * (n2.y - n1.y);
+    Node::new(x, y)
 }
 
 // loop on all coordinates c intersecting grid at min + side * alpha
 // such that start < c < end
-fn grid_coordinates_between(
-    min: f64,
-    mut start: f64,
-    mut end: f64,
-    side: f64,
-) -> impl Iterator<Item = f64> {
+fn grid_coordinates_between(mut start: f64, mut end: f64, side: f64) -> impl Iterator<Item = f64> {
     if start > end {
         std::mem::swap(&mut start, &mut end);
     }
 
-    let start_cell = (start - min) / side;
+    let start_cell = start / side;
     let above_start_cell = start_cell.ceil();
     let real_start_cell = if start_cell == above_start_cell {
         (above_start_cell + 1.) as u32
     } else {
         above_start_cell as u32
     };
-    let end_cell = ((end - min) / side).ceil() as u32;
-    (real_start_cell..end_cell).map(move |alpha| min + alpha as f64 * side)
+    let end_cell = (end / side).ceil() as u32;
+    (real_start_cell..end_cell).map(move |alpha| alpha as f64 * side)
 }

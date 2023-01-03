@@ -1,4 +1,4 @@
-use gps::cut_ways_at_squares;
+use gps::{cut_ways_at_squares, Node};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::io::Write;
@@ -18,7 +18,7 @@ const COLORS: [&str; 4] = ["red", "green", "blue", "purple"];
 
 fn save_svg<P: AsRef<Path>>(
     path: P,
-    nodes: &[(f64, f64)],
+    nodes: &[Node],
     ways: &HashMap<usize, Vec<usize>>,
     bbox: (f64, f64, f64, f64),
     side: f64,
@@ -49,22 +49,24 @@ fn save_svg<P: AsRef<Path>>(
         ymin + ymax
     )?;
 
-    for (x, y) in nodes {
-        let color = (((y - ymin) / side).floor() as usize + ((x - xmin) / side).floor() as usize)
+    for n in nodes {
+        let color = (((n.y - ymin) / side).floor() as usize
+            + ((n.x - xmin) / side).floor() as usize)
             % COLORS.len();
         writeln!(
             &mut writer,
             "<circle cx='{}' cy='{}' fill='{}' r='0.8%'/>",
-            x, y, COLORS[color]
+            n.x, n.y, COLORS[color]
         )?;
     }
     for way_points in ways.values() {
         way_points.iter().tuple_windows().try_for_each(|(i1, i2)| {
-            let (x1, y1) = nodes[*i1];
-            let (x2, y2) = nodes[*i2];
+            let n1 = nodes[*i1];
+            let n2 = nodes[*i2];
             writeln!(
                 &mut writer,
-                "<line x1='{x1}' y1='{y1}' x2='{x2}' y2='{y2}' stroke='black' stroke-width='0.2%'/>",
+                "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='black' stroke-width='0.2%'/>",
+                n1.x, n1.y, n2.x, n2.y
             )
         })?;
     }
@@ -74,7 +76,10 @@ fn save_svg<P: AsRef<Path>>(
     Ok(())
 }
 
-const SIDE: f64 = 1. / 1000.;
+const SIDE: f64 = 1. / 1000.; // excellent value
+                              // with it we have few segments crossing several squares
+                              // and what's more we can use 1 byte for each coordinate inside the square
+                              // for 1/2 meter precision
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -100,14 +105,14 @@ async fn main() -> std::io::Result<()> {
         renamed_nodes.len(),
         streets.len()
     );
-    cut_ways_at_squares(&mut renamed_nodes, &mut ways, (bbox.0, bbox.1), SIDE);
+    cut_ways_at_squares(&mut renamed_nodes, &mut ways, SIDE);
     eprintln!("after cutting we have {} nodes", renamed_nodes.len());
-    let (squared_nodes, indices, starts, squares_per_line) =
-        group_nodes_in_squares(&renamed_nodes, bbox, SIDE);
+    let (squares_sizes_prefix, squares_per_line, first_square_coordinates) =
+        group_nodes_in_squares(&mut renamed_nodes, &mut ways, SIDE);
     eprintln!(
         "we still have {} nodes in {} squares",
-        squared_nodes.len(),
-        starts.len()
+        renamed_nodes.len(),
+        squares_sizes_prefix.len()
     );
     save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     Ok(())
