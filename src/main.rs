@@ -100,6 +100,7 @@ async fn main() -> std::io::Result<()> {
         .await?;
     let (mut nodes, mut ways, streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
     let mut renamed_nodes = rename_nodes(nodes, &mut ways);
+    gps::simplify_ways(&mut renamed_nodes, &mut ways);
     eprintln!(
         "we have {} nodes and {} streets",
         renamed_nodes.len(),

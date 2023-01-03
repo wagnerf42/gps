@@ -301,3 +301,25 @@ fn grid_coordinates_between(mut start: f64, mut end: f64, side: f64) -> impl Ite
     let end_cell = (end / side).ceil() as u32;
     (real_start_cell..end_cell).map(move |alpha| alpha as f64 * side)
 }
+
+pub fn simplify_ways(nodes: &mut Vec<Node>, ways: &mut HashMap<usize, Vec<usize>>) {
+    let mut new_nodes = HashMap::new();
+    let mut new_ways = HashMap::new();
+    let mut new_nodes_vec = Vec::new();
+    for (way_id, way) in ways.iter() {
+        let way_nodes = way.iter().map(|i| nodes[*i]).collect::<Vec<_>>();
+        let simpler_way_nodes = simplify::simplify_path(&way_nodes, 0.00015);
+        let mut new_way = Vec::new();
+        for new_node in simpler_way_nodes {
+            let id = *new_nodes.entry(new_node).or_insert_with(|| {
+                let id = new_nodes_vec.len();
+                new_nodes_vec.push(new_node);
+                id
+            });
+            new_way.push(id);
+        }
+        new_ways.insert(*way_id, new_way);
+    }
+    std::mem::swap(&mut new_ways, ways);
+    std::mem::swap(&mut new_nodes_vec, nodes);
+}
