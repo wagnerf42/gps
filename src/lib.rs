@@ -303,21 +303,62 @@ fn grid_coordinates_between(mut start: f64, mut end: f64, side: f64) -> impl Ite
 }
 
 pub fn simplify_ways(nodes: &mut Vec<Node>, ways: &mut HashMap<usize, Vec<usize>>) {
+    // first, we scan all ways to count the usage of each node.
+    // any node with usage >= 2 will not get removed.
+    let mut degrees: HashMap<usize, usize> = HashMap::new();
+    for id in ways.values().flat_map(|way| way.iter()).copied() {
+        *degrees.entry(id).or_default() += 1;
+    }
+
     let mut new_nodes = HashMap::new();
     let mut new_ways = HashMap::new();
     let mut new_nodes_vec = Vec::new();
-    for (way_id, way) in ways.iter() {
-        let way_nodes = way.iter().map(|i| nodes[*i]).collect::<Vec<_>>();
-        let simpler_way_nodes = simplify::simplify_path(&way_nodes, 0.00015);
+    for (way_id, way) in ways.iter().sorted() {
+        assert!(way.len() > 1);
         let mut new_way = Vec::new();
-        for new_node in simpler_way_nodes {
-            let id = *new_nodes.entry(new_node).or_insert_with(|| {
-                let id = new_nodes_vec.len();
-                new_nodes_vec.push(new_node);
-                id
-            });
-            new_way.push(id);
+        for small_way in way.iter().copied().peekable().batching(|it| {
+            let mut small_way = it
+                .next()
+                .map(|id| nodes[id])
+                .into_iter()
+                .collect::<Vec<_>>();
+            while let Some(id) = it.peek() {
+                if degrees[id] > 1 {
+                    small_way.push(nodes[*id]);
+                    return Some(small_way);
+                } else {
+                    small_way.extend(it.next().map(|id| nodes[id]));
+                }
+            }
+            if small_way.is_empty() {
+                None
+            } else {
+                Some(small_way)
+            }
+        }) {
+            let simpler_way_nodes = if small_way.len() > 1 {
+                let mut v = simplify::simplify_path(&small_way, 0.00015);
+                v
+            } else {
+                small_way
+            };
+            for new_node in simpler_way_nodes {
+                if new_way
+                    .last()
+                    .map(|l| new_nodes_vec[*l] == new_node)
+                    .unwrap_or_default()
+                {
+                    continue;
+                }
+                let id = *new_nodes.entry(new_node).or_insert_with(|| {
+                    let id = new_nodes_vec.len();
+                    new_nodes_vec.push(new_node);
+                    id
+                });
+                new_way.push(id);
+            }
         }
+        assert!(new_way.len() > 1);
         new_ways.insert(*way_id, new_way);
     }
     std::mem::swap(&mut new_ways, ways);

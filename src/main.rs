@@ -83,24 +83,26 @@ const SIDE: f64 = 1. / 1000.; // excellent value
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    // let bbox = (5.767136, 45.186547, 5.77, 45.19);
+    let bbox = (5.767136, 45.186547, 5.77, 45.19);
     // let answer = request(bbox.0, bbox.1, bbox.2, bbox.3).await.unwrap();
     // let mut log = BufWriter::new(File::create("small_log").await?);
     // log.write_all(answer.as_bytes()).await?;
     // let (mut nodes, mut ways, streets) = parse_osm_xml(&answer);
 
-    let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
+    // let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
     // let answer = request(5.767136, 45.186547, 5.897531, 45.247925)
     //     .await
     //     .unwrap();
     let mut answer = Vec::new();
-    BufReader::new(File::open("log").await?)
-        // BufReader::new(File::open("small_log").await?)
+    // BufReader::new(File::open("log").await?)
+    BufReader::new(File::open("small_log").await?)
         .read_to_end(&mut answer)
         .await?;
     let (mut nodes, mut ways, streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
     let mut renamed_nodes = rename_nodes(nodes, &mut ways);
+    save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     gps::simplify_ways(&mut renamed_nodes, &mut ways);
+    save_svg("simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     eprintln!(
         "we have {} nodes and {} streets",
         renamed_nodes.len(),
