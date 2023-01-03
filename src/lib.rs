@@ -236,26 +236,37 @@ pub fn cut_ways_at_squares(
     ways: &mut HashMap<usize, Vec<usize>>,
     side: f64,
 ) {
+    let mut nodes_ids = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (*n, i))
+        .collect::<HashMap<_, _>>();
     for way in ways.values_mut() {
-        cut_way_at_squares(nodes, way, side)
+        cut_way_at_squares(nodes, &mut nodes_ids, way, side)
     }
 }
 
-pub fn cut_way_at_squares(nodes: &mut Vec<Node>, way: &mut Vec<usize>, side: f64) {
-    // we assume ways never intersect between their endpoints
-
+pub fn cut_way_at_squares(
+    nodes: &mut Vec<Node>,
+    nodes_ids: &mut HashMap<Node, usize>,
+    way: &mut Vec<usize>,
+    side: f64,
+) {
     let mut new_way = Vec::new();
-    for (i1, i2) in way.iter().copied().tuples() {
-        new_way.push(i1);
+    for (i1, i2) in way.iter().copied().tuple_windows() {
         let n1 = nodes[i1];
         let n2 = nodes[i2];
 
-        let mut new_nodes = grid_coordinates_between(n1.x, n2.x, side)
-            .map(|x| vertical_segment_intersection(&n1, &n2, x))
+        let mut new_nodes = std::iter::once(n1)
             .chain(
-                grid_coordinates_between(n1.y, n2.y, side)
-                    .map(|y| horizontal_segment_intersection(&n1, &n2, y)),
+                grid_coordinates_between(n1.x, n2.x, side)
+                    .map(|x| vertical_segment_intersection(&n1, &n2, x))
+                    .chain(
+                        grid_coordinates_between(n1.y, n2.y, side)
+                            .map(|y| horizontal_segment_intersection(&n1, &n2, y)),
+                    ),
             )
+            .chain(std::iter::once(n2))
             .collect::<Vec<_>>();
         new_nodes.sort_unstable_by(|na, nb| {
             let da = na.squared_distance_between(&n1);
@@ -263,12 +274,15 @@ pub fn cut_way_at_squares(nodes: &mut Vec<Node>, way: &mut Vec<usize>, side: f64
             da.partial_cmp(&db).unwrap()
         });
         for new_node in new_nodes.into_iter().dedup() {
-            let new_id = nodes.len();
+            let new_id = *nodes_ids.entry(new_node).or_insert_with(|| {
+                let id = nodes.len();
+                nodes.push(new_node);
+                id
+            });
             new_way.push(new_id);
-            nodes.push(new_node);
         }
     }
-    new_way.extend(way.last().copied());
+    new_way.dedup();
     *way = new_way
 }
 
@@ -286,7 +300,11 @@ fn vertical_segment_intersection(n1: &Node, n2: &Node, x: f64) -> Node {
 
 // loop on all coordinates c intersecting grid at min + side * alpha
 // such that start < c < end
-fn grid_coordinates_between(mut start: f64, mut end: f64, side: f64) -> impl Iterator<Item = f64> {
+pub fn grid_coordinates_between(
+    mut start: f64,
+    mut end: f64,
+    side: f64,
+) -> impl Iterator<Item = f64> {
     if start > end {
         std::mem::swap(&mut start, &mut end);
     }
@@ -358,8 +376,9 @@ pub fn simplify_ways(nodes: &mut Vec<Node>, ways: &mut HashMap<usize, Vec<usize>
                 new_way.push(id);
             }
         }
-        assert!(new_way.len() > 1);
-        new_ways.insert(*way_id, new_way);
+        if new_way.len() > 1 {
+            new_ways.insert(*way_id, new_way); // very small loops might disappear
+        }
     }
     std::mem::swap(&mut new_ways, ways);
     std::mem::swap(&mut new_nodes_vec, nodes);
