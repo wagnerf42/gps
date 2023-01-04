@@ -113,16 +113,16 @@ async fn main() -> std::io::Result<()> {
         .await?;
     let (mut nodes, mut ways, streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
     let mut renamed_nodes = rename_nodes(nodes, &mut ways);
-    save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
+    // save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     gps::simplify_ways(&mut renamed_nodes, &mut ways);
-    save_svg("simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
+    // save_svg("simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     eprintln!(
         "we have {} nodes and {} streets",
         renamed_nodes.len(),
         streets.len()
     );
     cut_ways_at_squares(&mut renamed_nodes, &mut ways, SIDE);
-    save_svg("cut_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
+    // save_svg("cut_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     eprintln!("after cutting we have {} nodes", renamed_nodes.len());
     let (squares_sizes_prefix, squares_per_line, first_square_coordinates) =
         group_nodes_in_squares(&mut renamed_nodes, &mut ways, SIDE);
@@ -131,6 +131,19 @@ async fn main() -> std::io::Result<()> {
         renamed_nodes.len(),
         squares_sizes_prefix.len()
     );
-    save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
+    eprintln!(
+        "we have {} segments",
+        ways.values().map(|w| w.len() - 1).sum::<usize>()
+    );
+    let street_segments = streets
+        .values()
+        .flat_map(|street_ways| {
+            street_ways
+                .iter()
+                .map(|w| ways.get(w).map(|w| w.len()).unwrap_or_default())
+        })
+        .sum::<usize>();
+    eprintln!("we have {street_segments} street segments");
+    // save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     Ok(())
 }

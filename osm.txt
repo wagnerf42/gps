@@ -1,0 +1,14 @@
+// https://overpass-turbo.eu/
+[bbox: {{bbox}}];
+(
+ //find the ways
+ way["highway"]["highway"!="motorway"]["highway"!="trunk"];
+
+ //find the nodes that are members of those ways
+ >;
+);
+
+//output the collection of nodes and ways
+out body;
+
+
