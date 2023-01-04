@@ -403,9 +403,10 @@ pub fn cut_ways_on_tiles(
     ways: Vec<Vec<usize>>,
     streets: &mut HashMap<String, Vec<usize>>,
     side: f64,
-) -> Vec<Vec<usize>> {
+) -> (Vec<Vec<usize>>, HashMap<(usize, usize), Vec<usize>>) {
     let mut new_ways = Vec::new();
     let mut ids_changes: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut tiles_ways: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
     for (old_way_id, way) in ways.into_iter().enumerate() {
         assert!(way.len() > 1);
         way.into_iter()
@@ -415,19 +416,21 @@ pub fn cut_ways_on_tiles(
                 if let Some((first_node_id, first_node)) = it.next() {
                     let mut smaller_way = vec![first_node_id];
                     let mut current_tiles = tiles(first_node, side).collect::<HashSet<_>>();
+                    let mut tile_id = *current_tiles.iter().next().unwrap();
                     while let Some((next_node_id, next_node)) = it.peek() {
                         smaller_way.push(*next_node_id);
                         current_tiles = current_tiles
                             .intersection(&tiles(next_node, side).collect::<HashSet<_>>())
                             .copied()
                             .collect();
+                        tile_id = *current_tiles.iter().next().unwrap();
                         if let Some((_, next_node)) = it.peek() {
                             current_tiles = current_tiles
                                 .intersection(&tiles(next_node, side).collect::<HashSet<_>>())
                                 .copied()
                                 .collect();
                             if current_tiles.is_empty() {
-                                return Some(smaller_way);
+                                return Some((tile_id, smaller_way));
                             } else {
                                 it.next();
                             }
@@ -435,16 +438,17 @@ pub fn cut_ways_on_tiles(
                             it.next();
                         }
                     }
-                    Some(smaller_way)
+                    Some((tile_id, smaller_way))
                 } else {
                     None
                 }
             })
-            .for_each(|smaller_way| {
+            .for_each(|(tile_id, smaller_way)| {
                 assert!(smaller_way.len() > 1);
                 let new_id = new_ways.len();
                 new_ways.push(smaller_way);
                 ids_changes.entry(old_way_id).or_default().push(new_id);
+                tiles_ways.entry(tile_id).or_default().push(new_id);
             })
     }
 
@@ -458,7 +462,7 @@ pub fn cut_ways_on_tiles(
         *street_ways = new_street_ways;
     }
 
-    new_ways
+    (new_ways, tiles_ways)
 }
 
 // Loop on all tiles the node belongs.

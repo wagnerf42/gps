@@ -134,11 +134,12 @@ async fn main() -> std::io::Result<()> {
         ways.iter().map(|w| w.len() - 1).sum::<usize>(),
         ways.len()
     );
-    let ways = cut_ways_on_tiles(&renamed_nodes, ways, &mut streets, SIDE);
+    let (ways, tiles) = cut_ways_on_tiles(&renamed_nodes, ways, &mut streets, SIDE);
     eprintln!(
-        "after cutting ways we have {} segments and {} ways",
+        "after cutting ways we have {} segments and {} ways and {} tiles",
         ways.iter().map(|w| w.len() - 1).sum::<usize>(),
-        ways.len()
+        ways.len(),
+        tiles.len()
     );
     let street_segments = streets
         .values()
