@@ -1,5 +1,5 @@
-use gps::grid_coordinates_between;
-use gps::{cut_ways_at_squares, Node};
+use gps::{cut_ways_at_squares, simplify_ways, Node};
+use gps::{grid_coordinates_between, sanitize_ways};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::io::Write;
@@ -20,7 +20,7 @@ const COLORS: [&str; 5] = ["red", "green", "blue", "purple", "cyan"];
 fn save_svg<P: AsRef<Path>>(
     path: P,
     nodes: &[Node],
-    ways: &HashMap<usize, Vec<usize>>,
+    ways: &[Vec<usize>],
     bbox: (f64, f64, f64, f64),
     side: f64,
 ) -> std::io::Result<()> {
@@ -72,7 +72,7 @@ fn save_svg<P: AsRef<Path>>(
             n.x, n.y, COLORS[color]
         )?;
     }
-    for way_points in ways.values() {
+    for way_points in ways {
         way_points.iter().tuple_windows().try_for_each(|(i1, i2)| {
             let n1 = nodes[*i1];
             let n2 = nodes[*i2];
@@ -111,10 +111,11 @@ async fn main() -> std::io::Result<()> {
         // BufReader::new(File::open("small_log").await?)
         .read_to_end(&mut answer)
         .await?;
-    let (mut nodes, mut ways, streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
+    let (nodes, mut ways, mut streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
     let mut renamed_nodes = rename_nodes(nodes, &mut ways);
+    let mut ways = sanitize_ways(ways, &mut streets);
     // save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
-    gps::simplify_ways(&mut renamed_nodes, &mut ways);
+    simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
     // save_svg("simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     eprintln!(
         "we have {} nodes and {} streets",
@@ -133,17 +134,17 @@ async fn main() -> std::io::Result<()> {
     );
     eprintln!(
         "we have {} segments",
-        ways.values().map(|w| w.len() - 1).sum::<usize>()
+        ways.iter().map(|w| w.len() - 1).sum::<usize>()
     );
     let street_segments = streets
         .values()
         .flat_map(|street_ways| {
             street_ways
                 .iter()
-                .map(|w| ways.get(w).map(|w| w.len()).unwrap_or_default())
+                .map(|w| ways.get(*w).map(|w| w.len()).unwrap_or_default())
         })
         .sum::<usize>();
     eprintln!("we have {street_segments} street segments");
-    // save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
+    save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     Ok(())
 }

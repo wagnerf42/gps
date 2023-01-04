@@ -158,7 +158,7 @@ pub fn group_segments_in_squares(
 
 pub fn group_nodes_in_squares(
     nodes: &mut Vec<Node>,
-    ways: &mut HashMap<usize, Vec<usize>>,
+    ways: &mut [Vec<usize>],
     side: f64,
 ) -> (
     Vec<usize>, // start index of each first node in each bucket
@@ -197,7 +197,7 @@ pub fn group_nodes_in_squares(
             }
         }
     }
-    for way in ways.values_mut() {
+    for way in ways.iter_mut() {
         for old_id in way {
             *old_id = ids_translations[old_id];
         }
@@ -231,17 +231,13 @@ pub fn rename_nodes(
     renamed_nodes
 }
 
-pub fn cut_ways_at_squares(
-    nodes: &mut Vec<Node>,
-    ways: &mut HashMap<usize, Vec<usize>>,
-    side: f64,
-) {
+pub fn cut_ways_at_squares(nodes: &mut Vec<Node>, ways: &mut [Vec<usize>], side: f64) {
     let mut nodes_ids = nodes
         .iter()
         .enumerate()
         .map(|(i, n)| (*n, i))
         .collect::<HashMap<_, _>>();
-    for way in ways.values_mut() {
+    for way in ways.iter_mut() {
         cut_way_at_squares(nodes, &mut nodes_ids, way, side)
     }
 }
@@ -320,66 +316,100 @@ pub fn grid_coordinates_between(
     (real_start_cell..end_cell).map(move |alpha| alpha as f64 * side)
 }
 
-pub fn simplify_ways(nodes: &mut Vec<Node>, ways: &mut HashMap<usize, Vec<usize>>) {
-    // first, we scan all ways to count the usage of each node.
-    // any node with usage >= 2 will not get removed.
-    let mut degrees: HashMap<usize, usize> = HashMap::new();
-    for id in ways.values().flat_map(|way| way.iter()).copied() {
-        *degrees.entry(id).or_default() += 1;
-    }
-
+pub fn simplify_ways(
+    nodes: &mut Vec<Node>,
+    ways: &mut Vec<Vec<usize>>,
+    streets: &mut HashMap<String, Vec<usize>>,
+) {
     let mut new_nodes = HashMap::new();
-    let mut new_ways = HashMap::new();
+    let mut new_ways = Vec::new();
     let mut new_nodes_vec = Vec::new();
-    for (way_id, way) in ways.iter().sorted() {
+    let mut ids_changes: HashMap<usize, usize> = HashMap::new();
+    for (old_way_id, way) in ways.iter().enumerate() {
         assert!(way.len() > 1);
-        let mut new_way = Vec::new();
-        for small_way in way.iter().copied().peekable().batching(|it| {
-            let mut small_way = it
-                .next()
-                .map(|id| nodes[id])
-                .into_iter()
-                .collect::<Vec<_>>();
-            while let Some(id) = it.peek() {
-                if degrees[id] > 1 {
-                    small_way.push(nodes[*id]);
-                    return Some(small_way);
-                } else {
-                    small_way.extend(it.next().map(|id| nodes[id]));
-                }
-            }
-            if small_way.is_empty() {
-                None
-            } else {
-                Some(small_way)
-            }
-        }) {
-            let simpler_way_nodes = if small_way.len() > 1 {
-                let mut v = simplify::simplify_path(&small_way, 0.00015);
-                v
-            } else {
-                small_way
-            };
-            for new_node in simpler_way_nodes {
-                if new_way
-                    .last()
-                    .map(|l| new_nodes_vec[*l] == new_node)
-                    .unwrap_or_default()
-                {
-                    continue;
-                }
+        let way_nodes = way.iter().map(|id| nodes[*id]).collect::<Vec<_>>();
+        let simpler_way_nodes = simplify::simplify_path(&way_nodes, 0.00015);
+        let new_way = simpler_way_nodes
+            .into_iter()
+            .map(|new_node| {
                 let id = *new_nodes.entry(new_node).or_insert_with(|| {
                     let id = new_nodes_vec.len();
                     new_nodes_vec.push(new_node);
                     id
                 });
-                new_way.push(id);
-            }
-        }
+                id
+            })
+            .collect::<Vec<_>>();
         if new_way.len() > 1 {
-            new_ways.insert(*way_id, new_way); // very small loops might disappear
+            let new_way_id = new_ways.len();
+            new_ways.push(new_way); // very small loops might disappear
+            ids_changes.insert(old_way_id, new_way_id);
         }
     }
     std::mem::swap(&mut new_ways, ways);
     std::mem::swap(&mut new_nodes_vec, nodes);
+    for street in streets.values_mut() {
+        let new_street = street
+            .iter()
+            .filter_map(|old_id| ids_changes.get(old_id))
+            .copied()
+            .collect::<Vec<_>>();
+        *street = new_street;
+    }
+    streets.retain(|_, s| !s.is_empty());
+}
+
+fn compute_node_degrees(ways: &HashMap<usize, Vec<usize>>) -> HashMap<usize, usize> {
+    let mut degrees: HashMap<usize, usize> = HashMap::new();
+    for id in ways.values().flat_map(|way| way.iter()).copied() {
+        *degrees.entry(id).or_default() += 1;
+    }
+    degrees
+}
+
+// ensure no node of degree >= 2 is strictly inside a way but cutting ways
+// into smaller parts.
+// we also renumber ways to get integers from 0 to ways_num and return them as a vector.
+pub fn sanitize_ways(
+    ways: HashMap<usize, Vec<usize>>,
+    streets: &mut HashMap<String, Vec<usize>>,
+) -> Vec<Vec<usize>> {
+    let degrees = compute_node_degrees(&ways);
+    let mut new_ways = Vec::new();
+    let mut ids_changes: HashMap<usize, Vec<usize>> = HashMap::new();
+
+    // first, cut the ways
+    for (way_id, way) in ways {
+        for small_way in way.into_iter().peekable().batching(|it| {
+            let mut small_way = it.next().into_iter().collect::<Vec<_>>();
+            while let Some(id) = it.peek() {
+                if degrees[id] > 1 {
+                    small_way.push(*id);
+                    return Some(small_way);
+                } else {
+                    small_way.extend(it.next());
+                }
+            }
+            if small_way.len() <= 1 {
+                None
+            } else {
+                Some(small_way)
+            }
+        }) {
+            let new_id = new_ways.len();
+            new_ways.push(small_way);
+            ids_changes.entry(way_id).or_default().push(new_id);
+        }
+    }
+
+    // now update the streets
+    for street_ways in streets.values_mut() {
+        let new_street_ways = street_ways
+            .iter()
+            .flat_map(|way_id| ids_changes[way_id].iter())
+            .copied()
+            .collect::<Vec<_>>();
+        *street_ways = new_street_ways;
+    }
+    new_ways
 }
