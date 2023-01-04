@@ -6,7 +6,6 @@ use std::io::Write;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
-use gps::group_nodes_in_squares;
 use gps::parse_osm_xml;
 use gps::rename_nodes;
 use gps::request;

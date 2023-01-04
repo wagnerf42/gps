@@ -1,57 +1,5 @@
+use super::Node;
 use std::collections::HashMap;
-
-#[derive(Debug, Clone, Copy)]
-pub struct Node {
-    pub x: f64,
-    pub y: f64,
-}
-
-impl PartialEq for Node {
-    fn eq(&self, other: &Self) -> bool {
-        self.x.to_bits() == other.x.to_bits() && self.y.to_bits() == other.y.to_bits()
-    }
-}
-impl Eq for Node {}
-impl std::hash::Hash for Node {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.x.to_bits().hash(state);
-        self.y.to_bits().hash(state);
-    }
-}
-
-impl Node {
-    pub fn new(x: f64, y: f64) -> Self {
-        Node { x, y }
-    }
-    pub fn squared_distance_between(&self, other: &Node) -> f64 {
-        let dx = other.x - self.x;
-        let dy = other.y - self.y;
-        dx * dx + dy * dy
-    }
-    pub fn distance_to_segment(&self, v: &Node, w: &Node) -> f64 {
-        let l2 = v.squared_distance_between(w);
-        if l2 == 0.0 {
-            return self.squared_distance_between(v).sqrt();
-        }
-        // Consider the line extending the segment, parameterized as v + t (w - v).
-        // We find projection of point p onto the line.
-        // It falls where t = [(p-v) . (w-v)] / |w-v|^2
-        // We clamp t from [0,1] to handle points outside the segment vw.
-        let x0 = self.x - v.x;
-        let y0 = self.y - v.y;
-        let x1 = w.x - v.x;
-        let y1 = w.y - v.y;
-        let dot = x0 * x1 + y0 * y1;
-        let t = (dot / l2).clamp(0.0, 1.0);
-
-        let proj = Node {
-            x: v.x + x1 * t,
-            y: v.y + y1 * t,
-        };
-
-        proj.squared_distance_between(self).sqrt()
-    }
-}
 
 pub fn simplify_path(points: &[Node], epsilon: f64) -> Vec<Node> {
     if points.len() <= 600 {
