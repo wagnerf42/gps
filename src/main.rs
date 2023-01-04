@@ -1,4 +1,6 @@
-use gps::{compress_tiles, cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Node};
+use gps::{
+    compress_tiles, cut_segments_on_tiles, cut_ways_on_tiles, decompress_tiles, simplify_ways, Node,
+};
 use gps::{grid_coordinates_between, sanitize_ways};
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -63,14 +65,14 @@ fn save_svg<P: AsRef<Path>>(
         )?;
     }
 
-    for n in nodes {
-        let color = ((n.y / side).floor() as usize + (n.x / side).floor() as usize) % COLORS.len();
-        writeln!(
-            &mut writer,
-            "<circle cx='{}' cy='{}' fill='{}' r='0.8%'/>",
-            n.x, n.y, COLORS[color]
-        )?;
-    }
+    // for n in nodes {
+    //     let color = ((n.y / side).floor() as usize + (n.x / side).floor() as usize) % COLORS.len();
+    //     writeln!(
+    //         &mut writer,
+    //         "<circle cx='{}' cy='{}' fill='{}' r='0.8%'/>",
+    //         n.x, n.y, COLORS[color]
+    //     )?;
+    // }
     for way_points in ways {
         way_points.iter().tuple_windows().try_for_each(|(i1, i2)| {
             let n1 = nodes[*i1];
@@ -95,19 +97,19 @@ const SIDE: f64 = 1. / 1000.; // excellent value
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    // let bbox = (5.767136, 45.186547, 5.77, 45.19);
+    let bbox = (5.767136, 45.186547, 5.77, 45.19);
     // let answer = request(bbox.0, bbox.1, bbox.2, bbox.3).await.unwrap();
     // let mut log = BufWriter::new(File::create("small_log").await?);
     // log.write_all(answer.as_bytes()).await?;
     // let (mut nodes, mut ways, streets) = parse_osm_xml(&answer);
 
-    let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
+    // let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
     // let answer = request(5.767136, 45.186547, 5.897531, 45.247925)
     //     .await
     //     .unwrap();
     let mut answer = Vec::new();
-    BufReader::new(File::open("log").await?)
-        // BufReader::new(File::open("small_log").await?)
+    // BufReader::new(File::open("log").await?)
+    BufReader::new(File::open("small_log").await?)
         .read_to_end(&mut answer)
         .await?;
     let (nodes, mut ways, mut streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
@@ -154,6 +156,15 @@ async fn main() -> std::io::Result<()> {
     let (binary_ways, start, sizes_prefix, tiles_per_line) =
         compress_tiles(&renamed_nodes, &ways, &mut streets, &tiles, SIDE);
     eprintln!("all ways take {} bytes", binary_ways.len());
+    let (decompressed_nodes, decompressed_ways) =
+        decompress_tiles(binary_ways, start, tiles_per_line, &sizes_prefix, SIDE);
+    save_svg(
+        "dec.svg",
+        &decompressed_nodes,
+        &decompressed_ways,
+        bbox,
+        SIDE,
+    )?;
 
     Ok(())
 }

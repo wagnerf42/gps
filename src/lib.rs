@@ -303,6 +303,7 @@ pub fn compress_tiles(
             }
         }
     }
+    tiles_sizes_prefix.push(processed_ways_count);
 
     for street in streets.values_mut() {
         let new_street = street
@@ -317,4 +318,44 @@ pub fn compress_tiles(
         tiles_sizes_prefix,
         xmax + 1 - xmin,
     )
+}
+
+pub fn decompress_tiles(
+    encoded_ways: Vec<u8>,
+    start: (f64, f64),
+    tiles_per_line: usize,
+    sizes_prefix: &[usize],
+    side: f64,
+) -> (Vec<Node>, Vec<Vec<NodeId>>) {
+    let mut position = 0;
+    let mut nodes = Vec::new();
+    let mut seen_nodes = HashMap::new();
+    let mut ways = Vec::new();
+    while position < encoded_ways.len() {
+        let way_length = encoded_ways[position];
+        position += 1;
+        let tile_number = match sizes_prefix.binary_search(&ways.len()) {
+            Ok(i) => i,
+            Err(i) => i - 1,
+        };
+        let tile_x = tile_number % tiles_per_line;
+        let tile_y = tile_number / tiles_per_line;
+        let mut way = Vec::new();
+        for i in 0..way_length {
+            let cx = encoded_ways[position + 2 * i as usize];
+            let cy = encoded_ways[position + 2 * i as usize + 1];
+            let x = start.0 + tile_x as f64 * side + cx as f64 / 255. * side;
+            let y = start.1 + tile_y as f64 * side + cy as f64 / 255. * side;
+            let node = Node::new(x, y);
+            let node_id = *seen_nodes.entry(node).or_insert_with(|| {
+                let new_id = nodes.len();
+                nodes.push(node);
+                new_id
+            });
+            way.push(node_id);
+        }
+        position += 2 * way_length as usize;
+        ways.push(way);
+    }
+    (nodes, ways)
 }
