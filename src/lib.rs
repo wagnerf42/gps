@@ -260,3 +260,61 @@ pub fn cut_ways_on_tiles(
 
     (new_ways, tiles_ways)
 }
+
+pub fn compress_tiles(
+    nodes: &[Node],
+    ways: &[Vec<NodeId>],
+    streets: &mut HashMap<String, Vec<WayId>>,
+    tiles: &HashMap<TileKey, Vec<WayId>>,
+    side: f64,
+) -> (Vec<u8>, (f64, f64), Vec<usize>, usize) {
+    let mut binary_ways = Vec::new();
+    let mut tiles_sizes_prefix = Vec::new();
+    let mut processed_ways_count = 0;
+    let mut ids_changes = HashMap::new();
+    let (xmin, xmax) = tiles
+        .keys()
+        .map(|(x, _)| x)
+        .copied()
+        .minmax()
+        .into_option()
+        .unwrap();
+    let (ymin, ymax) = tiles
+        .keys()
+        .map(|(_, y)| y)
+        .copied()
+        .minmax()
+        .into_option()
+        .unwrap();
+    for y in ymin..=ymax {
+        for x in xmin..=xmax {
+            tiles_sizes_prefix.push(processed_ways_count);
+            if let Some(tile_ways) = tiles.get(&(x, y)) {
+                for way_id in tile_ways {
+                    let way = &ways[*way_id];
+                    binary_ways.push(way.len() as u8);
+                    binary_ways.extend(
+                        way.iter()
+                            .flat_map(|node_id| nodes[*node_id].encode(x, y, side)),
+                    );
+                    ids_changes.insert(way_id, processed_ways_count);
+                    processed_ways_count += 1;
+                }
+            }
+        }
+    }
+
+    for street in streets.values_mut() {
+        let new_street = street
+            .iter()
+            .map(|old_id| ids_changes[old_id])
+            .collect::<Vec<_>>();
+        *street = new_street;
+    }
+    (
+        binary_ways,
+        (xmin as f64 * side, ymin as f64 * side),
+        tiles_sizes_prefix,
+        xmax + 1 - xmin,
+    )
+}

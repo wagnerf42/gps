@@ -78,4 +78,13 @@ impl Node {
         let y = self.y + fraction_of_segment * (n2.y - self.y);
         Node::new(x, y)
     }
+
+    pub(crate) fn encode(&self, x: usize, y: usize, side: f64) -> [u8; 2] {
+        let x_offset = self.x - x as f64 * side;
+        let y_offset = self.y - y as f64 * side;
+        [
+            (x_offset * 255. / side).floor() as u8,
+            (y_offset * 255. / side).floor() as u8,
+        ]
+    }
 }

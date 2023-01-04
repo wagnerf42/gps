@@ -1,4 +1,4 @@
-use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Node};
+use gps::{compress_tiles, cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Node};
 use gps::{grid_coordinates_between, sanitize_ways};
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -150,5 +150,10 @@ async fn main() -> std::io::Result<()> {
         .sum::<usize>();
     eprintln!("we have {street_segments} street segments");
     save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
+
+    let (binary_ways, start, sizes_prefix, tiles_per_line) =
+        compress_tiles(&renamed_nodes, &ways, &mut streets, &tiles, SIDE);
+    eprintln!("all ways take {} bytes", binary_ways.len());
+
     Ok(())
 }
