@@ -1,4 +1,4 @@
-use gps::{cut_ways_at_squares, simplify_ways, Node};
+use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Node};
 use gps::{grid_coordinates_between, sanitize_ways};
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -122,19 +122,23 @@ async fn main() -> std::io::Result<()> {
         renamed_nodes.len(),
         streets.len()
     );
-    cut_ways_at_squares(&mut renamed_nodes, &mut ways, SIDE);
+    cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
     // save_svg("cut_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
-    eprintln!("after cutting we have {} nodes", renamed_nodes.len());
-    let (squares_sizes_prefix, squares_per_line, first_square_coordinates) =
-        group_nodes_in_squares(&mut renamed_nodes, &mut ways, SIDE);
     eprintln!(
-        "we still have {} nodes in {} squares",
-        renamed_nodes.len(),
-        squares_sizes_prefix.len()
+        "after cutting segments we have {} nodes",
+        renamed_nodes.len()
     );
+
     eprintln!(
-        "we have {} segments",
-        ways.iter().map(|w| w.len() - 1).sum::<usize>()
+        "we have {} segments and {} ways",
+        ways.iter().map(|w| w.len() - 1).sum::<usize>(),
+        ways.len()
+    );
+    let ways = cut_ways_on_tiles(&renamed_nodes, ways, &mut streets, SIDE);
+    eprintln!(
+        "after cutting ways we have {} segments and {} ways",
+        ways.iter().map(|w| w.len() - 1).sum::<usize>(),
+        ways.len()
     );
     let street_segments = streets
         .values()

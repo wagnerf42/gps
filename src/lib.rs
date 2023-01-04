@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use xml::{reader::XmlEvent, EventReader};
 
@@ -136,26 +136,6 @@ pub fn parse_osm_xml(
     (nodes, ways, streets)
 }
 
-pub fn group_segments_in_squares(
-    nodes: &Vec<Node>,
-    ways: &HashMap<usize, Vec<usize>>,
-    first_square_coordinates: (f64, f64),
-    squares_per_line: usize,
-    side: f64,
-) -> (Vec<((u8, u8), (u8, u8))>, Vec<usize>) {
-    let mut squares: HashMap<(usize, usize), Vec<(u8, u8)>> = HashMap::new();
-    ways.values()
-        .flat_map(|way| way.iter().tuple_windows())
-        .map(|(id1, id2)| (nodes[*id1], nodes[*id2]))
-        .map(|(n1, n2)| {
-            let xk1 = n1.x / side;
-            let yk1 = n1.y / side;
-
-            todo!()
-        });
-    todo!()
-}
-
 pub fn group_nodes_in_squares(
     nodes: &mut Vec<Node>,
     ways: &mut [Vec<usize>],
@@ -231,18 +211,18 @@ pub fn rename_nodes(
     renamed_nodes
 }
 
-pub fn cut_ways_at_squares(nodes: &mut Vec<Node>, ways: &mut [Vec<usize>], side: f64) {
+pub fn cut_segments_on_tiles(nodes: &mut Vec<Node>, ways: &mut [Vec<usize>], side: f64) {
     let mut nodes_ids = nodes
         .iter()
         .enumerate()
         .map(|(i, n)| (*n, i))
         .collect::<HashMap<_, _>>();
     for way in ways.iter_mut() {
-        cut_way_at_squares(nodes, &mut nodes_ids, way, side)
+        cut_way_segments_on_tiles(nodes, &mut nodes_ids, way, side)
     }
 }
 
-pub fn cut_way_at_squares(
+pub fn cut_way_segments_on_tiles(
     nodes: &mut Vec<Node>,
     nodes_ids: &mut HashMap<Node, usize>,
     way: &mut Vec<usize>,
@@ -278,7 +258,9 @@ pub fn cut_way_at_squares(
             new_way.push(new_id);
         }
     }
+    assert!(new_way.len() > 1);
     new_way.dedup();
+    assert!(new_way.len() > 1);
     *way = new_way
 }
 
@@ -339,6 +321,7 @@ pub fn simplify_ways(
                 });
                 id
             })
+            .dedup()
             .collect::<Vec<_>>();
         if new_way.len() > 1 {
             let new_way_id = new_ways.len();
@@ -397,6 +380,7 @@ pub fn sanitize_ways(
             }
         }) {
             let new_id = new_ways.len();
+            assert!(small_way.len() > 1);
             new_ways.push(small_way);
             ids_changes.entry(way_id).or_default().push(new_id);
         }
@@ -412,4 +396,84 @@ pub fn sanitize_ways(
         *street_ways = new_street_ways;
     }
     new_ways
+}
+
+pub fn cut_ways_on_tiles(
+    nodes: &[Node],
+    ways: Vec<Vec<usize>>,
+    streets: &mut HashMap<String, Vec<usize>>,
+    side: f64,
+) -> Vec<Vec<usize>> {
+    let mut new_ways = Vec::new();
+    let mut ids_changes: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (old_way_id, way) in ways.into_iter().enumerate() {
+        assert!(way.len() > 1);
+        way.into_iter()
+            .map(|id| (id, &nodes[id]))
+            .multipeek()
+            .batching(|it| {
+                if let Some((first_node_id, first_node)) = it.next() {
+                    let mut smaller_way = vec![first_node_id];
+                    let mut current_tiles = tiles(first_node, side).collect::<HashSet<_>>();
+                    while let Some((next_node_id, next_node)) = it.peek() {
+                        smaller_way.push(*next_node_id);
+                        current_tiles = current_tiles
+                            .intersection(&tiles(next_node, side).collect::<HashSet<_>>())
+                            .copied()
+                            .collect();
+                        if let Some((_, next_node)) = it.peek() {
+                            current_tiles = current_tiles
+                                .intersection(&tiles(next_node, side).collect::<HashSet<_>>())
+                                .copied()
+                                .collect();
+                            if current_tiles.is_empty() {
+                                return Some(smaller_way);
+                            } else {
+                                it.next();
+                            }
+                        } else {
+                            it.next();
+                        }
+                    }
+                    Some(smaller_way)
+                } else {
+                    None
+                }
+            })
+            .for_each(|smaller_way| {
+                assert!(smaller_way.len() > 1);
+                let new_id = new_ways.len();
+                new_ways.push(smaller_way);
+                ids_changes.entry(old_way_id).or_default().push(new_id);
+            })
+    }
+
+    // now update the streets
+    for street_ways in streets.values_mut() {
+        let new_street_ways = street_ways
+            .iter()
+            .flat_map(|way_id| ids_changes[way_id].iter())
+            .copied()
+            .collect::<Vec<_>>();
+        *street_ways = new_street_ways;
+    }
+
+    new_ways
+}
+
+// Loop on all tiles the node belongs.
+fn tiles(node: &Node, side: f64) -> impl Iterator<Item = (usize, usize)> {
+    let x = node.x / side;
+    let y = node.y / side;
+    let x_key = x.floor() as usize;
+    let y_key = y.floor() as usize;
+    let x_key_2 = x.ceil() as usize;
+    let y_key_2 = y.ceil() as usize;
+    let left = (x_key == x_key_2).then_some((x_key - 1, y_key));
+    let top = (y_key == y_key_2).then_some((x_key, y_key - 1));
+    let top_left = ((x_key == x_key_2) && (y_key == y_key_2)).then_some((x_key - 1, y_key - 1));
+    std::iter::once((x_key, y_key))
+        .chain(left)
+        .chain(top)
+        .chain(top_left)
 }
