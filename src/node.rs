@@ -87,4 +87,9 @@ impl Node {
             (y_offset * 255. / side).floor() as u8,
         ]
     }
+
+    pub(crate) fn is(&self, other: &Node) -> bool {
+        let d = self.squared_distance_between(other).sqrt();
+        d < 1. / 256_000. // TODO: check that
+    }
 }

@@ -175,7 +175,8 @@ async fn main() -> std::io::Result<()> {
         bbox,
         SIDE,
     )?;
-    map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
+    let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
+    eprintln!("path is {path:?}");
 
     Ok(())
 }

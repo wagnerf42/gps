@@ -6,6 +6,7 @@ use crate::{CWayId, Node, NodeId, TileKey, WayId};
 pub struct Map {
     pub binary_ways: Vec<u8>,
     pub start_coordinates: (f64, f64),
+    pub first_tile: (usize, usize),
     pub tiles_sizes_prefix: Vec<usize>,
     pub tiles_per_line: usize,
     pub side: f64,
@@ -72,12 +73,21 @@ impl Map {
             .collect();
         Map {
             binary_ways,
+            first_tile: (xmin, ymin),
             start_coordinates: (xmin as f64 * side, ymin as f64 * side),
             tiles_sizes_prefix,
             tiles_per_line: xmax + 1 - xmin,
             side,
             streets: new_streets,
         }
+    }
+    pub fn node_tiles(&self, node: &Node) -> impl Iterator<Item = (usize, usize)> + '_ {
+        node.tiles(self.side).map(|(x, y)| {
+            (
+                x.checked_sub(self.first_tile.0).unwrap(),
+                y.checked_sub(self.first_tile.1).unwrap(),
+            )
+        })
     }
 
     pub fn decompress(&self) -> (Vec<Node>, Vec<Vec<NodeId>>) {
@@ -116,6 +126,7 @@ impl Map {
                 .unwrap_or_default(),
         )
     }
+
     pub fn tile_ways(&self, tile_x: usize, tile_y: usize) -> impl Iterator<Item = Vec<Node>> + '_ {
         let tile_number = tile_y * self.tiles_per_line + tile_x;
         let tile_x = tile_number % self.tiles_per_line;
@@ -127,28 +138,56 @@ impl Map {
             .unwrap_or_default();
         let mut binary_tile = &self.binary_ways[binary_start..binary_end];
         std::iter::from_fn(move || {
-            if let Some((way_length, remainder)) = binary_tile.split_first() {
-                let (binary_way, remainder) = remainder.split_at(2 * *way_length as usize);
-                let r: &[u8] = binary_way;
-                binary_tile = remainder;
-                Some(
-                    binary_way
-                        .iter()
-                        .tuples()
-                        .map(|(cx, cy)| {
-                            let x = self.start_coordinates.0
-                                + tile_x as f64 * self.side
-                                + *cx as f64 / 255. * self.side;
-                            let y = self.start_coordinates.1
-                                + tile_y as f64 * self.side
-                                + *cy as f64 / 255. * self.side;
-                            Node::new(x, y)
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            } else {
-                None
-            }
+            self.decode_way(tile_x, tile_y, binary_tile)
+                .map(|(way, remainder)| {
+                    binary_tile = remainder;
+                    way
+                })
+        })
+    }
+
+    pub fn tile_ways_ends(
+        &self,
+        tile_x: usize,
+        tile_y: usize,
+    ) -> impl Iterator<Item = [Node; 2]> + '_ {
+        self.tile_ways(tile_x, tile_y)
+            .map(|w| [w.first().copied().unwrap(), w.last().copied().unwrap()])
+    }
+
+    pub fn way(&self, way_id: CWayId) -> Vec<Node> {
+        let (tile_number, way_offset) = (way_id.0 as usize, way_id.1 as usize);
+        let tile_x = tile_number % self.tiles_per_line;
+        let tile_y = tile_number / self.tiles_per_line;
+        let offset = self.tiles_sizes_prefix[tile_number] + way_offset;
+        let binary = &self.binary_ways[offset..];
+        self.decode_way(tile_x, tile_y, binary).unwrap().0
+    }
+
+    fn decode_way<'a>(
+        &self,
+        tile_x: usize,
+        tile_y: usize,
+        binary_tile: &'a [u8],
+    ) -> Option<(Vec<Node>, &'a [u8])> {
+        binary_tile.split_first().map(|(way_length, remainder)| {
+            let (binary_way, remainder) = remainder.split_at(2 * *way_length as usize);
+            (
+                binary_way
+                    .iter()
+                    .tuples()
+                    .map(|(cx, cy)| {
+                        let x = self.start_coordinates.0
+                            + tile_x as f64 * self.side
+                            + *cx as f64 / 255. * self.side;
+                        let y = self.start_coordinates.1
+                            + tile_y as f64 * self.side
+                            + *cy as f64 / 255. * self.side;
+                        Node::new(x, y)
+                    })
+                    .collect::<Vec<_>>(),
+                remainder,
+            )
         })
     }
 }
