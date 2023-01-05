@@ -335,7 +335,17 @@ pub fn decompress_tiles(
         let way_length = encoded_ways[position];
         position += 1;
         let tile_number = match sizes_prefix.binary_search(&ways.len()) {
-            Ok(i) => i,
+            Ok(i) => {
+                // we need the rightmost match
+                sizes_prefix[i..]
+                    .iter()
+                    .enumerate()
+                    .take_while(|&(_, s)| *s == ways.len())
+                    .last()
+                    .map(|(i, _)| i)
+                    .unwrap()
+                    + i
+            }
             Err(i) => i - 1,
         };
         let tile_x = tile_number % tiles_per_line;

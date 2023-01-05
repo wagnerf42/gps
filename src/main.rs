@@ -97,23 +97,36 @@ const SIDE: f64 = 1. / 1000.; // excellent value
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let bbox = (5.767136, 45.186547, 5.77, 45.19);
+    // let bbox = (5.767136, 45.186547, 5.77, 45.19);
     // let answer = request(bbox.0, bbox.1, bbox.2, bbox.3).await.unwrap();
     // let mut log = BufWriter::new(File::create("small_log").await?);
     // log.write_all(answer.as_bytes()).await?;
     // let (mut nodes, mut ways, streets) = parse_osm_xml(&answer);
 
-    // let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
+    let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
     // let answer = request(5.767136, 45.186547, 5.897531, 45.247925)
     //     .await
     //     .unwrap();
     let mut answer = Vec::new();
-    // BufReader::new(File::open("log").await?)
-    BufReader::new(File::open("small_log").await?)
+    BufReader::new(File::open("log").await?)
+        // BufReader::new(File::open("small_log").await?)
         .read_to_end(&mut answer)
         .await?;
     let (nodes, mut ways, mut streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
     let mut renamed_nodes = rename_nodes(nodes, &mut ways);
+    // let bbox = (0., 0., 4., 3.);
+    // let mut streets = HashMap::new();
+    // let mut renamed_nodes = vec![
+    //     Node::new(2.2, 0.2),
+    //     Node::new(2.5, 2.8),
+    //     Node::new(2.5, 2.2),
+    //     Node::new(0.4, 2.2),
+    //     Node::new(3.1, 1.4),
+    //     Node::new(6.1, 1.5),
+    // ];
+    // let ways = std::iter::once((0, vec![0, 1, 2, 3]))
+    //     .chain(std::iter::once((1, vec![1, 4])))
+    //     .collect();
     let mut ways = sanitize_ways(ways, &mut streets);
     // save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
