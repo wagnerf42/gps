@@ -8,13 +8,14 @@ mod simplify;
 pub use osm::{parse_osm_xml, request};
 mod utils;
 pub use utils::grid_coordinates_between;
-mod compression;
-pub use compression::CompressedMap;
+mod map;
+pub use map::Map;
 mod graph;
 
 pub type TileKey = (usize, usize);
 pub type WayId = usize;
 pub type NodeId = usize;
+pub type CWayId = (u16, u16); // tile number + index of way inside tile (absolute pos in binary encoding)
 
 // convert osm nodes ids to smaller integers (from 0 to nodes number)
 // and update ways accordingly

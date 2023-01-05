@@ -1,4 +1,4 @@
-use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, CompressedMap, Node};
+use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Map, Node};
 use gps::{grid_coordinates_between, sanitize_ways};
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -164,7 +164,9 @@ async fn main() -> std::io::Result<()> {
     eprintln!("we have {street_segments} street segments");
     save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
 
-    let map = CompressedMap::new(&renamed_nodes, &ways, &mut streets, &tiles, SIDE);
+    let map = Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE);
+    let (map_size, tiles_number, max_ways_per_tile) = map.stats();
+    eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");
     let (decompressed_nodes, decompressed_ways) = map.decompress();
     save_svg(
         "dec.svg",
@@ -173,6 +175,7 @@ async fn main() -> std::io::Result<()> {
         bbox,
         SIDE,
     )?;
+    map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
 
     Ok(())
 }
