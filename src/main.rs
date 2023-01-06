@@ -1,9 +1,6 @@
-use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Map, Node};
-use gps::{grid_coordinates_between, sanitize_ways};
-use itertools::Itertools;
-use std::collections::HashMap;
+use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Map, Node, Svg};
+use gps::{sanitize_ways, save_svg};
 use std::io::Write;
-use std::path::Path;
 use tokio::io::AsyncWriteExt;
 
 use gps::parse_osm_xml;
@@ -13,80 +10,6 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
 use tokio::io::BufWriter;
-
-const COLORS: [&str; 5] = ["red", "green", "blue", "purple", "cyan"];
-
-fn save_svg<P: AsRef<Path>>(
-    path: P,
-    nodes: &[Node],
-    ways: &[Vec<usize>],
-    bbox: (f64, f64, f64, f64),
-    side: f64,
-) -> std::io::Result<()> {
-    let mut writer = std::io::BufWriter::new(std::fs::File::create(path)?);
-    let (xmin, ymin, xmax, ymax) = bbox;
-
-    writeln!(
-        &mut writer,
-        "<svg width='800' height='600' viewBox='{} {} {} {}'>",
-        xmin,
-        ymin,
-        xmax - xmin,
-        ymax - ymin
-    )?;
-    writeln!(
-        &mut writer,
-        "<rect fill='white' x='{}' y='{}' width='{}' height='{}'/>",
-        xmin,
-        ymin,
-        xmax - xmin,
-        ymax - ymin
-    )?;
-
-    writeln!(
-        &mut writer,
-        "<g transform='translate(0, {}) scale(1,-1)'>",
-        ymin + ymax
-    )?;
-
-    for x in grid_coordinates_between(xmin, xmax, SIDE) {
-        writeln!(
-            &mut writer,
-            "<line x1='{x}' y1= '{ymin}' x2='{x}' y2='{ymax}' stroke='grey' stroke-width='0.2%'/>"
-        )?;
-    }
-
-    for y in grid_coordinates_between(ymin, ymax, SIDE) {
-        writeln!(
-            &mut writer,
-            "<line x1='{xmin}' y1= '{y}' x2='{xmax}' y2='{y}' stroke='grey' stroke-width='0.2%'/>"
-        )?;
-    }
-
-    // for n in nodes {
-    //     let color = ((n.y / side).floor() as usize + (n.x / side).floor() as usize) % COLORS.len();
-    //     writeln!(
-    //         &mut writer,
-    //         "<circle cx='{}' cy='{}' fill='{}' r='0.8%'/>",
-    //         n.x, n.y, COLORS[color]
-    //     )?;
-    // }
-    for way_points in ways {
-        way_points.iter().tuple_windows().try_for_each(|(i1, i2)| {
-            let n1 = nodes[*i1];
-            let n2 = nodes[*i2];
-            writeln!(
-                &mut writer,
-                "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='black' stroke-width='0.2%'/>",
-                n1.x, n1.y, n2.x, n2.y
-            )
-        })?;
-    }
-
-    writeln!(&mut writer, "</g></svg>",)?;
-
-    Ok(())
-}
 
 const SIDE: f64 = 1. / 1000.; // excellent value
                               // with it we have few segments crossing several squares
@@ -162,18 +85,14 @@ async fn main() -> std::io::Result<()> {
         })
         .sum::<usize>();
     eprintln!("we have {street_segments} street segments");
-    save_svg("test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
 
     let map = Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE);
     let (map_size, tiles_number, max_ways_per_tile) = map.stats();
     eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");
-    let (decompressed_nodes, decompressed_ways) = map.decompress();
     save_svg(
         "dec.svg",
-        &decompressed_nodes,
-        &decompressed_ways,
-        bbox,
-        SIDE,
+        map.bounding_box(),
+        std::iter::once(&map as &dyn Svg<std::io::BufWriter<std::fs::File>>),
     )?;
     let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
     eprintln!("path is {path:?}");

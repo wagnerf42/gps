@@ -11,6 +11,8 @@ pub use utils::grid_coordinates_between;
 mod map;
 pub use map::Map;
 mod graph;
+mod svg;
+pub use svg::{Svg, save_svg};
 
 pub type TileKey = (usize, usize);
 pub type WayId = usize;

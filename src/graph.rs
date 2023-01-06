@@ -70,7 +70,7 @@ impl Map {
             .map(|(way_id, n)| {
                 (
                     (
-                        (tile_x + tile_y * self.tiles_per_line) as u16,
+                        (tile_x + tile_y * self.grid_size.0) as u16,
                         way_id as u16,
                     ),
                     n,

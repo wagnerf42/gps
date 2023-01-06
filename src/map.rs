@@ -8,7 +8,7 @@ pub struct Map {
     pub start_coordinates: (f64, f64),
     pub first_tile: (usize, usize),
     pub tiles_sizes_prefix: Vec<usize>,
-    pub tiles_per_line: usize,
+    pub grid_size: (usize, usize),
     pub side: f64,
     pub streets: HashMap<String, Vec<CWayId>>,
 }
@@ -76,7 +76,7 @@ impl Map {
             first_tile: (xmin, ymin),
             start_coordinates: (xmin as f64 * side, ymin as f64 * side),
             tiles_sizes_prefix,
-            tiles_per_line: xmax + 1 - xmin,
+            grid_size: ((xmax + 1 - xmin), (ymax + 1 - ymin)),
             side,
             streets: new_streets,
         }
@@ -90,26 +90,30 @@ impl Map {
         })
     }
 
+    pub fn ways(&self) -> impl Iterator<Item = Vec<Node>> + '_ {
+        (0..self.tiles_sizes_prefix.len()).flat_map(|tile_number| {
+            let tile_x = tile_number % self.grid_size.0;
+            let tile_y = tile_number / self.grid_size.0;
+            self.tile_ways(tile_x, tile_y)
+        })
+    }
+
     pub fn decompress(&self) -> (Vec<Node>, Vec<Vec<NodeId>>) {
         let mut position = 0;
         let mut nodes = Vec::new();
         let mut seen_nodes = HashMap::new();
         let mut ways = Vec::new();
-        for tile_number in 0..self.tiles_sizes_prefix.len() {
-            let tile_x = tile_number % self.tiles_per_line;
-            let tile_y = tile_number / self.tiles_per_line;
-            for way_nodes in self.tile_ways(tile_x, tile_y) {
-                let mut way = Vec::new();
-                for node in way_nodes {
-                    let node_id = *seen_nodes.entry(node).or_insert_with(|| {
-                        let new_id = nodes.len();
-                        nodes.push(node);
-                        new_id
-                    });
-                    way.push(node_id);
-                }
-                ways.push(way);
+        for way_nodes in self.ways() {
+            let mut way = Vec::new();
+            for node in way_nodes {
+                let node_id = *seen_nodes.entry(node).or_insert_with(|| {
+                    let new_id = nodes.len();
+                    nodes.push(node);
+                    new_id
+                });
+                way.push(node_id);
             }
+            ways.push(way);
         }
         (nodes, ways)
     }
@@ -128,9 +132,9 @@ impl Map {
     }
 
     pub fn tile_ways(&self, tile_x: usize, tile_y: usize) -> impl Iterator<Item = Vec<Node>> + '_ {
-        let tile_number = tile_y * self.tiles_per_line + tile_x;
-        let tile_x = tile_number % self.tiles_per_line;
-        let tile_y = tile_number / self.tiles_per_line;
+        let tile_number = tile_y * self.grid_size.0 + tile_x;
+        let tile_x = tile_number % self.grid_size.0;
+        let tile_y = tile_number / self.grid_size.0;
         let binary_end = self.tiles_sizes_prefix[tile_number];
         let binary_start = tile_number
             .checked_sub(1)
@@ -157,8 +161,8 @@ impl Map {
 
     pub fn way(&self, way_id: CWayId) -> Vec<Node> {
         let (tile_number, way_offset) = (way_id.0 as usize, way_id.1 as usize);
-        let tile_x = tile_number % self.tiles_per_line;
-        let tile_y = tile_number / self.tiles_per_line;
+        let tile_x = tile_number % self.grid_size.0;
+        let tile_y = tile_number / self.grid_size.0;
         let offset = self.tiles_sizes_prefix[tile_number] + way_offset;
         let binary = &self.binary_ways[offset..];
         self.decode_way(tile_x, tile_y, binary).unwrap().0
@@ -189,5 +193,13 @@ impl Map {
                 remainder,
             )
         })
+    }
+
+    pub fn bounding_box(&self) -> (f64, f64, f64, f64) {
+        let xmin = self.start_coordinates.0;
+        let ymin = self.start_coordinates.1;
+        let xmax = xmin + self.grid_size.0 as f64 * self.side;
+        let ymax = ymin + self.grid_size.1 as f64 * self.side;
+        (xmin, ymin, xmax, ymax)
     }
 }
