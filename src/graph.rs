@@ -1,13 +1,20 @@
 use itertools::Itertools;
 use std::collections::HashSet;
 
-use crate::{CWayId, Map, Node, WayId};
+use crate::{save_svg, CWayId, Map, Node, SvgW, WayId};
 
 impl Map {
     pub fn shortest_path(&self, gps_start: &Node, street: &str) -> Vec<Node> {
         let (starting_way, starting_node) = self.find_starting_node(gps_start);
         let end_node = self.find_ending_node(gps_start, street);
-        self.greedy_path(self.way(starting_way).first().unwrap(), &end_node)
+        let path = self.greedy_path(self.way(starting_way).first().unwrap(), &end_node);
+        save_svg(
+            "path.svg",
+            self.bounding_box(),
+            [self as SvgW, &starting_node as SvgW, &end_node as SvgW],
+        )
+        .unwrap();
+        path
     }
 
     fn greedy_path(&self, start: &Node, end: &Node) -> Vec<Node> {
@@ -69,10 +76,7 @@ impl Map {
             })
             .map(|(way_id, n)| {
                 (
-                    (
-                        (tile_x + tile_y * self.grid_size.0) as u16,
-                        way_id as u16,
-                    ),
+                    ((tile_x + tile_y * self.grid_size.0) as u16, way_id as u16),
                     n,
                 )
             })

@@ -12,7 +12,7 @@ mod map;
 pub use map::Map;
 mod graph;
 mod svg;
-pub use svg::{Svg, save_svg};
+pub use svg::{save_svg, Svg, SvgW};
 
 pub type TileKey = (usize, usize);
 pub type WayId = usize;

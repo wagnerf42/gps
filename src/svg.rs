@@ -5,7 +5,9 @@ use itertools::Itertools;
 
 use crate::{grid_coordinates_between, Map, Node};
 
-const COLORS: [&str; 5] = ["red", "green", "blue", "purple", "cyan"];
+pub type SvgW<'a> = &'a dyn Svg<std::io::BufWriter<std::fs::File>>;
+
+const COLORS: [&str; 6] = ["black", "red", "green", "blue", "purple", "cyan"];
 
 pub trait Svg<W: Write> {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()>;

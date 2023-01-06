@@ -1,4 +1,4 @@
-use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Map, Node, Svg};
+use gps::{cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Map, Node, Svg, SvgW};
 use gps::{sanitize_ways, save_svg};
 use std::io::Write;
 use tokio::io::AsyncWriteExt;
@@ -89,11 +89,7 @@ async fn main() -> std::io::Result<()> {
     let map = Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE);
     let (map_size, tiles_number, max_ways_per_tile) = map.stats();
     eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");
-    save_svg(
-        "dec.svg",
-        map.bounding_box(),
-        std::iter::once(&map as &dyn Svg<std::io::BufWriter<std::fs::File>>),
-    )?;
+    //save_svg("dec.svg", map.bounding_box(), std::iter::once(&map as SvgW))?;
     let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
     eprintln!("path is {path:?}");
 

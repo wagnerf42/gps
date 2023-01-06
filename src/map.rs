@@ -55,11 +55,11 @@ impl Map {
                     }
                 }
                 tiles_sizes_prefix.push(binary_ways.len());
+                tile_id += 1;
             }
-            tile_id += 1;
         }
 
-        let new_streets = streets
+        let new_streets: HashMap<_, _> = streets
             .into_iter()
             .map(|(name, street)| {
                 (
@@ -71,6 +71,7 @@ impl Map {
                 )
             })
             .collect();
+
         Map {
             binary_ways,
             first_tile: (xmin, ymin),
@@ -81,6 +82,7 @@ impl Map {
             streets: new_streets,
         }
     }
+
     pub fn node_tiles(&self, node: &Node) -> impl Iterator<Item = (usize, usize)> + '_ {
         node.tiles(self.side).map(|(x, y)| {
             (
@@ -99,7 +101,6 @@ impl Map {
     }
 
     pub fn decompress(&self) -> (Vec<Node>, Vec<Vec<NodeId>>) {
-        let mut position = 0;
         let mut nodes = Vec::new();
         let mut seen_nodes = HashMap::new();
         let mut ways = Vec::new();
@@ -133,8 +134,6 @@ impl Map {
 
     pub fn tile_ways(&self, tile_x: usize, tile_y: usize) -> impl Iterator<Item = Vec<Node>> + '_ {
         let tile_number = tile_y * self.grid_size.0 + tile_x;
-        let tile_x = tile_number % self.grid_size.0;
-        let tile_y = tile_number / self.grid_size.0;
         let binary_end = self.tiles_sizes_prefix[tile_number];
         let binary_start = tile_number
             .checked_sub(1)
@@ -196,8 +195,7 @@ impl Map {
     }
 
     pub fn bounding_box(&self) -> (f64, f64, f64, f64) {
-        let xmin = self.start_coordinates.0;
-        let ymin = self.start_coordinates.1;
+        let (xmin, ymin) = self.start_coordinates;
         let xmax = xmin + self.grid_size.0 as f64 * self.side;
         let ymax = ymin + self.grid_size.1 as f64 * self.side;
         (xmin, ymin, xmax, ymax)
