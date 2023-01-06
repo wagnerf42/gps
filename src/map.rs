@@ -42,16 +42,16 @@ impl Map {
         for y in ymin..=ymax {
             for x in xmin..=xmax {
                 if let Some(tile_ways) = tiles.get(&(x, y)) {
-                    let mut way_in_tile_count = 0;
+                    let tile_start_offset = binary_ways.len();
                     for way_id in tile_ways {
                         let way = &ways[*way_id];
+                        let way_offset = binary_ways.len() - tile_start_offset;
                         binary_ways.push(way.len() as u8);
                         binary_ways.extend(
                             way.iter()
                                 .flat_map(|node_id| nodes[*node_id].encode(x, y, side)),
                         );
-                        ids_changes.insert(way_id, (tile_id, way_in_tile_count));
-                        way_in_tile_count += 1;
+                        ids_changes.insert(way_id, (tile_id, way_offset as u16));
                     }
                 }
                 tiles_sizes_prefix.push(binary_ways.len());
@@ -162,7 +162,11 @@ impl Map {
         let (tile_number, way_offset) = (way_id.0 as usize, way_id.1 as usize);
         let tile_x = tile_number % self.grid_size.0;
         let tile_y = tile_number / self.grid_size.0;
-        let offset = self.tiles_sizes_prefix[tile_number] + way_offset;
+        let tile_start = tile_number
+            .checked_sub(1)
+            .map(|i| self.tiles_sizes_prefix[i])
+            .unwrap_or_default();
+        let offset = tile_start + way_offset;
         let binary = &self.binary_ways[offset..];
         self.decode_way(tile_x, tile_y, binary).unwrap().0
     }

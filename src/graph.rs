@@ -5,19 +5,20 @@ use crate::{save_svg, CWayId, Map, Node, SvgW, WayId};
 
 impl Map {
     pub fn shortest_path(&self, gps_start: &Node, street: &str) -> Vec<Node> {
-        let (starting_way, starting_node) = self.find_starting_node(gps_start);
+        let starting_node = self.find_starting_node(gps_start);
         let end_node = self.find_ending_node(gps_start, street);
-        let path = self.greedy_path(self.way(starting_way).first().unwrap(), &end_node);
         save_svg(
             "path.svg",
             self.bounding_box(),
             [self as SvgW, &starting_node as SvgW, &end_node as SvgW],
         )
         .unwrap();
+        let path = self.greedy_path(&starting_node, &end_node);
         path
     }
 
     fn greedy_path(&self, start: &Node, end: &Node) -> Vec<Node> {
+        //TODO: avoid seing same node twice
         let mut stack = vec![(*start, 0)];
         let mut path = Vec::new();
         while let Some((current, depth)) = stack.pop() {
@@ -61,24 +62,18 @@ impl Map {
             .unwrap()
     }
 
-    fn find_starting_node(&self, gps_start: &Node) -> (CWayId, Node) {
+    fn find_starting_node(&self, gps_start: &Node) -> Node {
         //TODO: fixme if between tiles
         //TODO: fixme if outside of grid
         //TODO: fixme if empty tile
         let (tile_x, tile_y) = self.node_tiles(gps_start).next().unwrap();
-        self.tile_ways(tile_x, tile_y)
-            .enumerate()
-            .flat_map(move |(way_id, way_nodes)| way_nodes.into_iter().map(move |n| (way_id, n)))
-            .min_by(|(_, na), (_, nb)| {
+        //TODO: tile_ways
+        self.tile_ways_ends(tile_x, tile_y)
+            .flatten()
+            .min_by(|na, nb| {
                 na.squared_distance_between(gps_start)
                     .partial_cmp(&nb.squared_distance_between(gps_start))
                     .unwrap()
-            })
-            .map(|(way_id, n)| {
-                (
-                    ((tile_x + tile_y * self.grid_size.0) as u16, way_id as u16),
-                    n,
-                )
             })
             .unwrap()
     }

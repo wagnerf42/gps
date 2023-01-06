@@ -11,10 +11,11 @@ use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
 use tokio::io::BufWriter;
 
-const SIDE: f64 = 1. / 1000.; // excellent value
-                              // with it we have few segments crossing several squares
-                              // and what's more we can use 1 byte for each coordinate inside the square
-                              // for 1/2 meter precision
+const SIDE: f64 = 1.;
+// const SIDE: f64 = 1. / 1000.; // excellent value
+// with it we have few segments crossing several squares
+// and what's more we can use 1 byte for each coordinate inside the square
+// for 1/2 meter precision
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -24,30 +25,30 @@ async fn main() -> std::io::Result<()> {
     // log.write_all(answer.as_bytes()).await?;
     // let (mut nodes, mut ways, streets) = parse_osm_xml(&answer);
 
-    let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
+    // let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
     // let answer = request(5.767136, 45.186547, 5.897531, 45.247925)
     //     .await
     //     .unwrap();
-    let mut answer = Vec::new();
-    BufReader::new(File::open("log").await?)
-        // BufReader::new(File::open("small_log").await?)
-        .read_to_end(&mut answer)
-        .await?;
-    let (nodes, mut ways, mut streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
-    let mut renamed_nodes = rename_nodes(nodes, &mut ways);
-    // let bbox = (0., 0., 4., 3.);
-    // let mut streets = HashMap::new();
-    // let mut renamed_nodes = vec![
-    //     Node::new(2.2, 0.2),
-    //     Node::new(2.5, 2.8),
-    //     Node::new(2.5, 2.2),
-    //     Node::new(0.4, 2.2),
-    //     Node::new(3.1, 1.4),
-    //     Node::new(6.1, 1.5),
-    // ];
-    // let ways = std::iter::once((0, vec![0, 1, 2, 3]))
-    //     .chain(std::iter::once((1, vec![1, 4])))
-    //     .collect();
+    // let mut answer = Vec::new();
+    // BufReader::new(File::open("log").await?)
+    //     // BufReader::new(File::open("small_log").await?)
+    //     .read_to_end(&mut answer)
+    //     .await?;
+    // let (nodes, mut ways, mut streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
+    // let mut renamed_nodes = rename_nodes(nodes, &mut ways);
+    let bbox = (0., 0., 4., 3.);
+    let mut renamed_nodes = vec![
+        Node::new(2.2, 0.2),
+        Node::new(2.5, 2.8),
+        Node::new(2.5, 2.2),
+        Node::new(0.4, 2.2),
+        Node::new(3.1, 1.4),
+        Node::new(6.1, 1.5),
+    ];
+    let ways = std::iter::once((0, vec![0, 1, 2, 3]))
+        .chain(std::iter::once((1, vec![1, 4])))
+        .collect();
+    let mut streets = std::iter::once(("Rue Lavoisier".to_owned(), vec![1])).collect();
     let mut ways = sanitize_ways(ways, &mut streets);
     // save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
@@ -90,7 +91,8 @@ async fn main() -> std::io::Result<()> {
     let (map_size, tiles_number, max_ways_per_tile) = map.stats();
     eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");
     //save_svg("dec.svg", map.bounding_box(), std::iter::once(&map as SvgW))?;
-    let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
+    // let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
+    let path = map.shortest_path(&Node::new(2.21, 0.2), "Rue Lavoisier");
     eprintln!("path is {path:?}");
 
     Ok(())
