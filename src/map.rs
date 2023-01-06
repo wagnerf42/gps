@@ -96,7 +96,7 @@ impl Map {
         (0..self.tiles_sizes_prefix.len()).flat_map(|tile_number| {
             let tile_x = tile_number % self.grid_size.0;
             let tile_y = tile_number / self.grid_size.0;
-            self.tile_ways(tile_x, tile_y)
+            self.tile_ways(tile_x, tile_y).map(|(_, n)| n)
         })
     }
 
@@ -132,7 +132,11 @@ impl Map {
         )
     }
 
-    pub fn tile_ways(&self, tile_x: usize, tile_y: usize) -> impl Iterator<Item = Vec<Node>> + '_ {
+    pub fn tile_ways(
+        &self,
+        tile_x: usize,
+        tile_y: usize,
+    ) -> impl Iterator<Item = (usize, Vec<Node>)> + '_ {
         let tile_number = tile_y * self.grid_size.0 + tile_x;
         let binary_end = self.tiles_sizes_prefix[tile_number];
         let binary_start = tile_number
@@ -141,24 +145,41 @@ impl Map {
             .unwrap_or_default();
         let mut binary_tile = &self.binary_ways[binary_start..binary_end];
         std::iter::from_fn(move || {
-            self.decode_way(tile_x, tile_y, binary_tile)
-                .map(|(way, remainder)| {
-                    binary_tile = remainder;
-                    way
-                })
+            self.decode_way(
+                tile_x,
+                tile_y,
+                binary_tile,
+                self.binary_ways.as_ptr() as usize,
+            )
+            .map(|(way_offset, way, remainder)| {
+                binary_tile = remainder;
+                (way_offset, way)
+            })
         })
     }
 
+    // loop on both endpoints of all ways in wanted tile
+    // we also get a usize which is the way's starting offset
+    // in the binary encoding and therefore a unique and 'compact'
+    // identifier of the way
     pub fn tile_ways_ends(
         &self,
         tile_x: usize,
         tile_y: usize,
-    ) -> impl Iterator<Item = [Node; 2]> + '_ {
-        self.tile_ways(tile_x, tile_y)
-            .map(|w| [w.first().copied().unwrap(), w.last().copied().unwrap()])
+    ) -> impl Iterator<Item = (usize, [Node; 2])> + '_ {
+        //TODO: optimize me
+        self.tile_ways(tile_x, tile_y).map(|(way_offset, nodes)| {
+            (
+                way_offset,
+                [
+                    nodes.first().copied().unwrap(),
+                    nodes.last().copied().unwrap(),
+                ],
+            )
+        })
     }
 
-    pub fn way(&self, way_id: CWayId) -> Vec<Node> {
+    pub fn way(&self, way_id: CWayId) -> (usize, Vec<Node>) {
         let (tile_number, way_offset) = (way_id.0 as usize, way_id.1 as usize);
         let tile_x = tile_number % self.grid_size.0;
         let tile_y = tile_number / self.grid_size.0;
@@ -168,7 +189,15 @@ impl Map {
             .unwrap_or_default();
         let offset = tile_start + way_offset;
         let binary = &self.binary_ways[offset..];
-        self.decode_way(tile_x, tile_y, binary).unwrap().0
+        let decoded = self
+            .decode_way(
+                tile_x,
+                tile_y,
+                binary,
+                &self.binary_ways[0] as *const _ as usize,
+            )
+            .unwrap();
+        (decoded.0, decoded.1)
     }
 
     fn decode_way<'a>(
@@ -176,10 +205,13 @@ impl Map {
         tile_x: usize,
         tile_y: usize,
         binary_tile: &'a [u8],
-    ) -> Option<(Vec<Node>, &'a [u8])> {
+        binary_start: usize,
+    ) -> Option<(usize, Vec<Node>, &'a [u8])> {
+        let way_offset = binary_tile.as_ptr() as usize - binary_start;
         binary_tile.split_first().map(|(way_length, remainder)| {
             let (binary_way, remainder) = remainder.split_at(2 * *way_length as usize);
             (
+                way_offset,
                 binary_way
                     .iter()
                     .tuples()

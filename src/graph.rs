@@ -1,26 +1,52 @@
 use itertools::Itertools;
-use std::collections::HashSet;
+use std::{collections::HashSet, io::Write};
 
-use crate::{save_svg, CWayId, Map, Node, SvgW, WayId};
+use crate::{save_svg, CWayId, Map, Node, Svg, SvgW, WayId};
+
+#[derive(Debug, Clone, Copy)]
+struct GNode {
+    id: usize,
+    way_id: usize,
+    node: Node,
+}
+
+impl<W: Write> Svg<W> for GNode {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        self.node.write_svg(writer, color)
+    }
+}
+
+impl std::ops::Deref for GNode {
+    type Target = Node;
+
+    fn deref(&self) -> &Self::Target {
+        &self.node
+    }
+}
 
 impl Map {
     pub fn shortest_path(&self, gps_start: &Node, street: &str) -> Vec<Node> {
         let starting_node = self.find_starting_node(gps_start);
         let end_node = self.find_ending_node(gps_start, street);
+        let path = self.greedy_path(&starting_node, &end_node);
         save_svg(
             "path.svg",
             self.bounding_box(),
-            [self as SvgW, &starting_node as SvgW, &end_node as SvgW],
+            [
+                self as SvgW,
+                &starting_node as SvgW,
+                &end_node as SvgW,
+                &path as SvgW,
+            ],
         )
         .unwrap();
-        let path = self.greedy_path(&starting_node, &end_node);
         path
     }
 
-    fn greedy_path(&self, start: &Node, end: &Node) -> Vec<Node> {
-        //TODO: avoid seing same node twice
+    fn greedy_path(&self, start: &GNode, end: &GNode) -> Vec<Node> {
         let mut stack = vec![(*start, 0)];
         let mut path = Vec::new();
+        let mut seen_nodes = HashSet::new(); // NOTE: this will be a BitVec and not a hashset
         while let Some((current, depth)) = stack.pop() {
             while let Some((_, d)) = path.last() {
                 // we backtrack, cancel
@@ -30,9 +56,13 @@ impl Map {
                     path.pop();
                 }
             }
+            if seen_nodes.contains(&current.id) {
+                continue;
+            }
+            seen_nodes.insert(current.id);
             path.push((current, depth));
             if current.is(end) {
-                return path.into_iter().map(|(n, _)| n).collect();
+                return path.into_iter().map(|(n, _)| n.node).collect();
             }
             stack.extend(
                 self.neighbours(&current)
@@ -48,12 +78,27 @@ impl Map {
     }
 
     // go to nearest node in the street
-    fn find_ending_node(&self, gps_start: &Node, street: &str) -> Node {
+    fn find_ending_node(&self, gps_start: &Node, street: &str) -> GNode {
         self.streets
             .get(street)
             .into_iter()
             .flatten()
-            .flat_map(|&way_id| self.way(way_id))
+            .flat_map(|&way_id| {
+                let (way_offset, nodes) = self.way(way_id);
+                nodes
+                    .first()
+                    .map(|n| GNode {
+                        id: way_offset,
+                        way_id: way_offset,
+                        node: *n,
+                    })
+                    .into_iter()
+                    .chain(nodes.last().map(|n| GNode {
+                        id: way_offset + 1,
+                        way_id: way_offset,
+                        node: *n,
+                    }))
+            })
             .min_by(|na, nb| {
                 na.squared_distance_between(gps_start)
                     .partial_cmp(&nb.squared_distance_between(gps_start))
@@ -62,13 +107,31 @@ impl Map {
             .unwrap()
     }
 
-    fn find_starting_node(&self, gps_start: &Node) -> Node {
+    fn tile_edges(&self, tile_x: usize, tile_y: usize) -> impl Iterator<Item = [GNode; 2]> + '_ {
+        self.tile_ways_ends(tile_x, tile_y)
+            .map(|(way_offset, nodes)| {
+                [
+                    GNode {
+                        id: way_offset,
+                        way_id: way_offset,
+                        node: nodes[0],
+                    },
+                    GNode {
+                        id: way_offset + 1,
+                        way_id: way_offset,
+                        node: nodes[1],
+                    },
+                ]
+            })
+    }
+
+    fn find_starting_node(&self, gps_start: &Node) -> GNode {
         //TODO: fixme if between tiles
         //TODO: fixme if outside of grid
         //TODO: fixme if empty tile
         let (tile_x, tile_y) = self.node_tiles(gps_start).next().unwrap();
         //TODO: tile_ways
-        self.tile_ways_ends(tile_x, tile_y)
+        self.tile_edges(tile_x, tile_y)
             .flatten()
             .min_by(|na, nb| {
                 na.squared_distance_between(gps_start)
@@ -78,14 +141,18 @@ impl Map {
             .unwrap()
     }
 
-    pub(crate) fn neighbours<'a>(&'a self, node: &'a Node) -> impl Iterator<Item = Node> + 'a {
+    fn neighbours<'a>(&'a self, node: &'a GNode) -> impl Iterator<Item = GNode> + 'a {
         self.node_tiles(node)
-            .flat_map(|(tile_x, tile_y)| self.tile_ways_ends(tile_x, tile_y))
+            .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
             .filter_map(|nodes| {
-                if nodes[0].is(node) {
+                if nodes[0].is(node) && node.way_id == nodes[1].way_id {
                     Some(nodes[1])
-                } else if nodes[1].is(node) {
+                } else if nodes[1].is(node) && nodes[0].way_id == node.way_id {
                     Some(nodes[0])
+                } else if nodes[0].is(node) && nodes[0].way_id != node.way_id {
+                    Some(nodes[0])
+                } else if nodes[1].is(node) && nodes[1].way_id != node.way_id {
+                    Some(nodes[1])
                 } else {
                     None
                 }
