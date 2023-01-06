@@ -18,19 +18,19 @@ const SIDE: f64 = 1. / 1000.; // excellent value
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    // let bbox = (5.767136, 45.186547, 5.77, 45.19);
+    let bbox = (5.767136, 45.186547, 5.77, 45.19);
     // let answer = request(bbox.0, bbox.1, bbox.2, bbox.3).await.unwrap();
     // let mut log = BufWriter::new(File::create("small_log").await?);
     // log.write_all(answer.as_bytes()).await?;
     // let (mut nodes, mut ways, streets) = parse_osm_xml(&answer);
 
-    let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
+    // let bbox = (5.767136, 45.186547, 5.897531, 45.247925);
     // let answer = request(5.767136, 45.186547, 5.897531, 45.247925)
     //     .await
     //     .unwrap();
     let mut answer = Vec::new();
-    BufReader::new(File::open("log").await?)
-        //     // BufReader::new(File::open("small_log").await?)
+    // BufReader::new(File::open("log").await?)
+    BufReader::new(File::open("small_log").await?)
         .read_to_end(&mut answer)
         .await?;
     let (nodes, mut ways, mut streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
@@ -89,7 +89,8 @@ async fn main() -> std::io::Result<()> {
     let (map_size, tiles_number, max_ways_per_tile) = map.stats();
     eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");
     //save_svg("dec.svg", map.bounding_box(), std::iter::once(&map as SvgW))?;
-    let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
+    // let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
+    let path = map.shortest_path(&Node::new(5.769, 45.187), "Rue des Universités");
     eprintln!("path is {path:?}");
 
     Ok(())

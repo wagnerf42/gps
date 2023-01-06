@@ -44,10 +44,10 @@ impl Map {
     }
 
     fn greedy_path(&self, start: &GNode, end: &GNode) -> Vec<Node> {
-        let mut stack = vec![(*start, 0)];
+        let mut stack = vec![([*start, *start], 0)];
         let mut path = Vec::new();
         let mut seen_nodes = HashSet::new(); // NOTE: this will be a BitVec and not a hashset
-        while let Some((current, depth)) = stack.pop() {
+        while let Some((travel, depth)) = stack.pop() {
             while let Some((_, d)) = path.last() {
                 // we backtrack, cancel
                 if *d < depth {
@@ -56,22 +56,26 @@ impl Map {
                     path.pop();
                 }
             }
-            if seen_nodes.contains(&current.id) {
+            if seen_nodes.contains(&travel[1].id) {
                 continue;
             }
-            seen_nodes.insert(current.id);
-            path.push((current, depth));
-            if current.is(end) {
-                return path.into_iter().map(|(n, _)| n.node).collect();
+            seen_nodes.insert(travel[0].id);
+            seen_nodes.insert(travel[1].id);
+            let current_node = travel[1];
+            eprintln!("we are at {current_node:?}");
+            path.push((current_node.node, depth));
+            if current_node.is(end) {
+                return path.into_iter().map(|(n, _)| n).collect();
             }
             stack.extend(
-                self.neighbours(&current)
-                    .sorted_by(|na, nb| {
-                        na.squared_distance_between(end)
-                            .partial_cmp(&nb.squared_distance_between(end))
+                self.neighbours(&current_node)
+                    .sorted_by(|ta, tb| {
+                        ta[1]
+                            .squared_distance_between(end)
+                            .partial_cmp(&tb[1].squared_distance_between(end))
                             .unwrap()
                     })
-                    .map(|n| (n, depth + 1)),
+                    .map(|t| (t, depth + 1)),
             );
         }
         Vec::new() // no path found
@@ -141,18 +145,23 @@ impl Map {
             .unwrap()
     }
 
-    fn neighbours<'a>(&'a self, node: &'a GNode) -> impl Iterator<Item = GNode> + 'a {
+    // this is tough.
+    // if we have two ways connecting, let's say w1 = (s1, e1) and w2 = (s2, e2) :
+    // such that e1 is s2.
+    // if we are located at e1 : we can go at s1
+    // but we can also go at e2 : however doing so we need to mark both s2 and e2 as visited
+    // and not only e2.
+    // that's why i cannot loop on the neighbours only, i also need the intermediate points.
+    fn neighbours<'a>(&'a self, node: &'a GNode) -> impl Iterator<Item = [GNode; 2]> + 'a {
         self.node_tiles(node)
             .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
             .filter_map(|nodes| {
-                if nodes[0].is(node) && node.way_id == nodes[1].way_id {
-                    Some(nodes[1])
-                } else if nodes[1].is(node) && nodes[0].way_id == node.way_id {
-                    Some(nodes[0])
-                } else if nodes[0].is(node) && nodes[0].way_id != node.way_id {
-                    Some(nodes[0])
-                } else if nodes[1].is(node) && nodes[1].way_id != node.way_id {
-                    Some(nodes[1])
+                if nodes[0].is(node) {
+                    eprintln!("yes to {nodes:?}");
+                    Some([nodes[0], nodes[1]])
+                } else if nodes[1].is(node) {
+                    eprintln!("yes2 to {nodes:?}");
+                    Some([nodes[1], nodes[0]])
                 } else {
                     None
                 }
