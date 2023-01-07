@@ -37,7 +37,7 @@ impl<W: Write> Svg<W> for Node {
 
 impl<W: Write> Svg<W> for Map {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
-        let (xmin, xmax, ymin, ymax) = self.bounding_box();
+        let (xmin, ymin, xmax, ymax) = self.bounding_box();
         for x in grid_coordinates_between(xmin, xmax, self.side) {
             writeln!(
             writer,

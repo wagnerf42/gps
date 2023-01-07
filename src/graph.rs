@@ -62,7 +62,6 @@ impl Map {
             seen_nodes.insert(travel[0].id);
             seen_nodes.insert(travel[1].id);
             let current_node = travel[1];
-            eprintln!("we are at {current_node:?}");
             path.push((current_node.node, depth));
             if current_node.is(end) {
                 return path.into_iter().map(|(n, _)| n).collect();
@@ -70,9 +69,9 @@ impl Map {
             stack.extend(
                 self.neighbours(&current_node)
                     .sorted_by(|ta, tb| {
-                        ta[1]
+                        tb[1]
                             .squared_distance_between(end)
-                            .partial_cmp(&tb[1].squared_distance_between(end))
+                            .partial_cmp(&ta[1].squared_distance_between(end))
                             .unwrap()
                     })
                     .map(|t| (t, depth + 1)),
@@ -157,10 +156,8 @@ impl Map {
             .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
             .filter_map(|nodes| {
                 if nodes[0].is(node) {
-                    eprintln!("yes to {nodes:?}");
                     Some([nodes[0], nodes[1]])
                 } else if nodes[1].is(node) {
-                    eprintln!("yes2 to {nodes:?}");
                     Some([nodes[1], nodes[0]])
                 } else {
                     None

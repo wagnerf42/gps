@@ -123,12 +123,14 @@ impl Map {
         (
             self.binary_ways.len(),
             self.tiles_sizes_prefix.len(),
-            std::iter::once(0)
-                .chain(self.tiles_sizes_prefix.iter().copied())
-                .tuple_windows()
-                .map(|(a, b)| b - a)
+            (0..self.tiles_sizes_prefix.len())
+                .map(|tile_number| {
+                    let tile_x = tile_number % self.grid_size.0;
+                    let tile_y = tile_number / self.grid_size.0;
+                    self.tile_ways(tile_x, tile_y).count()
+                })
                 .max()
-                .unwrap_or_default(),
+                .unwrap(),
         )
     }
 
