@@ -1,0 +1,5 @@
+- enlever les :
+    <tag k="service" v="parking_aisle"/>
+    <tag k="highway" v="footway"/> ?
+    <tag k="surface" v="paving_stones"/> ?
+    <tag k="highway" v="service"/> ?

@@ -18,9 +18,23 @@ impl<W: Write> Svg<W> for Vec<Node> {
         self.iter().tuple_windows().try_for_each(|(n1, n2)| {
             writeln!(
                 writer,
-                "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='{color}' stroke-width='0.2%'/>",
+                "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='{color}' stroke-width='0.1%'/>",
                 n1.x, n1.y, n2.x, n2.y
             )
+        })
+    }
+}
+
+impl<W: Write> Svg<W> for Vec<Vec<Node>> {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        self.iter().try_for_each(|v| {
+            v.iter().tuple_windows().try_for_each(|(n1, n2)| {
+                writeln!(
+                    writer,
+                    "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='{color}' stroke-width='0.1%'/>",
+                    n1.x, n1.y, n2.x, n2.y
+                )
+            })
         })
     }
 }

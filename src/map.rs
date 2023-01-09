@@ -120,6 +120,19 @@ impl Map {
     }
     // return map size in bytes, tiles number and max ways per tile
     pub fn stats(&self) -> (usize, usize, usize) {
+        // let max_tile = (0..self.tiles_sizes_prefix.len())
+        //     .max_by_key(|tile_number| {
+        //         let tile_x = tile_number % self.grid_size.0;
+        //         let tile_y = tile_number / self.grid_size.0;
+        //         self.tile_ways(tile_x, tile_y).count()
+        //     })
+        //     .unwrap();
+        // let xmin = self.start_coordinates.0 + self.side * (max_tile % self.grid_size.0) as f64;
+        // let ymin = self.start_coordinates.1 + self.side * (max_tile / self.grid_size.0) as f64;
+        // let xmax = xmin + self.side;
+        // let ymax = ymin + self.side;
+        // eprintln!("max tile is located at {xmin},{ymin},{xmax},{ymax}");
+
         (
             self.binary_ways.len(),
             self.tiles_sizes_prefix.len(),

@@ -19,17 +19,17 @@ const SIDE: f64 = 1. / 1000.; // excellent value
                               // and what's more we can use 1 byte for each coordinate inside the square
                               // for 1/2 meter precision
 
-async fn large_data_set() -> std::io::Result<(
+async fn load_data_set(
+    filename: &str,
+) -> std::io::Result<(
     Vec<Node>,
     HashMap<WayId, Vec<NodeId>>,
     HashMap<String, Vec<WayId>>,
     f64,
 )> {
-    // let answer = request(5.767136, 45.186547, 5.897531, 45.247925)
-    //     .await
-    //     .unwrap();
+    // let answer = request(5.767136, 45.186547, 5.897531, 45.247925) // large
     let mut answer = Vec::new();
-    BufReader::new(File::open("log").await?)
+    BufReader::new(File::open(filename).await?)
         .read_to_end(&mut answer)
         .await?;
     let (nodes, mut ways, streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
@@ -37,19 +37,23 @@ async fn large_data_set() -> std::io::Result<(
     Ok((renamed_nodes, ways, streets, SIDE))
 }
 
-async fn small_data_set() -> std::io::Result<(
+async fn request_data_set(
+    xmin: f64,
+    ymin: f64,
+    xmax: f64,
+    ymax: f64,
+    filename: &str,
+) -> std::io::Result<(
     Vec<Node>,
     HashMap<WayId, Vec<NodeId>>,
     HashMap<String, Vec<WayId>>,
     f64,
 )> {
-    // let bbox = (5.767136, 45.186547, 5.77, 45.19);
-    // let answer = request(bbox.0, bbox.1, bbox.2, bbox.3).await.unwrap();
-    let mut answer = Vec::new();
-    BufReader::new(File::open("small_log").await?)
-        .read_to_end(&mut answer)
+    let answer = request(xmin, ymin, xmax, ymax).await.unwrap();
+    BufWriter::new(File::create(filename).await?)
+        .write_all(answer.as_bytes())
         .await?;
-    let (nodes, mut ways, streets) = parse_osm_xml(std::str::from_utf8(&answer).unwrap());
+    let (nodes, mut ways, streets) = parse_osm_xml(std::str::from_utf8(answer.as_bytes()).unwrap());
     let renamed_nodes = rename_nodes(nodes, &mut ways);
     Ok((renamed_nodes, ways, streets, SIDE))
 }
@@ -77,7 +81,16 @@ async fn manual_data_set() -> std::io::Result<(
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let (mut nodes, ways, mut streets, side) = small_data_set().await?;
+    // let (mut nodes, ways, mut streets, side) = request_data_set(
+    //     5.7860000000000005,
+    //     45.211,
+    //     5.787000000000001,
+    //     45.211999999999996,
+    //     "heavy.set",
+    // )
+    // .await?;
+    let (mut nodes, ways, mut streets, side) = load_data_set("large.set").await?;
+    // let (mut nodes, ways, mut streets, side) = load_data_set("small.set").await?;
     let mut ways = sanitize_ways(ways, &mut streets);
     // save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     simplify_ways(&mut nodes, &mut ways, &mut streets);
@@ -115,8 +128,8 @@ async fn main() -> std::io::Result<()> {
     let (map_size, tiles_number, max_ways_per_tile) = map.stats();
     eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");
     save_svg("dec.svg", map.bounding_box(), std::iter::once(&map as SvgW))?;
-    // let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
-    let path = map.shortest_path(&Node::new(5.769, 45.187), "Rue des Universités");
+    let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");
+    // let path = map.shortest_path(&Node::new(5.769, 45.187), "Rue des Universités");
     // let path = map.shortest_path(&Node::new(2.99, 2.99), "Rue Lavoisier");
     eprintln!("path is {path:?}");
 

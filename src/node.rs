@@ -17,6 +17,8 @@ impl std::hash::Hash for Node {
     }
 }
 
+const TILE_BORDER_THICKNESS: f64 = 1. / 111_200.;
+
 impl Node {
     pub fn new(x: f64, y: f64) -> Self {
         Node { x, y }
@@ -52,19 +54,41 @@ impl Node {
 
     // Loop on all tiles the node belongs.
     pub fn tiles(&self, side: f64) -> impl Iterator<Item = (usize, usize)> {
-        let x = self.x / side;
-        let y = self.y / side;
-        let x_key = x.floor() as usize;
-        let y_key = y.floor() as usize;
-        let x_key_2 = x.ceil() as usize;
-        let y_key_2 = y.ceil() as usize;
-        let left = (x_key == x_key_2).then_some((x_key - 1, y_key));
-        let top = (y_key == y_key_2).then_some((x_key, y_key - 1));
-        let top_left = ((x_key == x_key_2) && (y_key == y_key_2)).then_some((x_key - 1, y_key - 1));
-        std::iter::once((x_key, y_key))
-            .chain(left)
-            .chain(top)
-            .chain(top_left)
+        let x = (self.x * 255. / side).round() as usize;
+        let y = (self.y * 255. / side).round() as usize;
+        let x_key = x / 255;
+        let y_key = y / 255;
+
+        let right_tile_border = (x_key + 1) as f64 * side;
+        let at_right = right_tile_border - self.x < TILE_BORDER_THICKNESS;
+        let left_tile_border = x_key as f64 * side;
+        let at_left = self.x - left_tile_border < TILE_BORDER_THICKNESS;
+        let top_tile_border = (y_key + 1) as f64 * side;
+        let at_top = top_tile_border - self.y < TILE_BORDER_THICKNESS;
+        let bottom_tile_border = y_key as f64 * side;
+        let at_bottom = self.y - bottom_tile_border < TILE_BORDER_THICKNESS;
+
+        let left = at_left.then_some((x_key - 1, y_key));
+        let top_left = (at_top && at_left).then_some((x_key - 1, y_key + 1));
+        let top = at_top.then_some((x_key, y_key + 1));
+        let top_right = (at_top && at_right).then_some((x_key + 1, y_key + 1));
+        let right = at_right.then_some((x_key + 1, y_key));
+        let bottom_right = (at_bottom && at_right).then_some((x_key + 1, y_key - 1));
+        let bottom = at_bottom.then_some((x_key, y_key - 1));
+        let bottom_left = (at_bottom && at_left).then_some((x_key - 1, y_key - 1));
+        [
+            Some((x_key, y_key)),
+            left,
+            top_left,
+            top,
+            top_right,
+            right,
+            bottom_right,
+            bottom,
+            bottom_left,
+        ]
+        .into_iter()
+        .flatten()
     }
 
     pub fn horizontal_segment_intersection(&self, n2: &Node, y: f64) -> Node {
@@ -83,13 +107,23 @@ impl Node {
         let x_offset = self.x - x as f64 * side;
         let y_offset = self.y - y as f64 * side;
         [
-            (x_offset * 255. / side).floor() as u8,
-            (y_offset * 255. / side).floor() as u8,
+            (x_offset * 255. / side).round() as u8,
+            (y_offset * 255. / side).round() as u8,
         ]
     }
 
     pub(crate) fn is(&self, other: &Node) -> bool {
         let d = self.squared_distance_between(other).sqrt();
-        d < 1. / 256_000. // TODO: check that
+        if d < 1. / 256_000. {
+            true
+        } else {
+            if self.y == 45.187000000000005 {
+                eprintln!(
+                    "comparing {self:?} and {other:?} d: {d} > {} ",
+                    1. / 256_000.
+                );
+            }
+            false
+        } // TODO: check that
     }
 }

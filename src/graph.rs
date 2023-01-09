@@ -28,6 +28,18 @@ impl Map {
     pub fn shortest_path(&self, gps_start: &Node, street: &str) -> Vec<Node> {
         let starting_node = self.find_starting_node(gps_start);
         let end_node = self.find_ending_node(gps_start, street);
+        let component = self.connected_component(&starting_node);
+        save_svg(
+            "component.svg",
+            self.bounding_box(),
+            [
+                self as SvgW,
+                &starting_node as SvgW,
+                &end_node as SvgW,
+                &component as SvgW,
+            ],
+        )
+        .unwrap();
         let path = self.greedy_path(&starting_node, &end_node);
         save_svg(
             "path.svg",
@@ -78,6 +90,26 @@ impl Map {
             );
         }
         Vec::new() // no path found
+    }
+
+    fn connected_component(&self, start: &GNode) -> Vec<Vec<Node>> {
+        let mut stack = vec![[*start, *start]];
+        let mut component = Vec::new();
+        let mut seen_nodes = HashSet::new(); // NOTE: this will be a BitVec and not a hashset
+        while let Some(travel) = stack.pop() {
+            if seen_nodes.contains(&travel[1].id) {
+                continue;
+            }
+            seen_nodes.insert(travel[0].id);
+            seen_nodes.insert(travel[1].id);
+            let current_node = travel[1];
+            let edge = travel.iter().map(|n| n.node).collect::<Vec<_>>();
+            if edge[0] != edge[1] {
+                component.push(edge);
+            }
+            stack.extend(self.neighbours(&current_node));
+        }
+        component
     }
 
     // go to nearest node in the street
