@@ -1,0 +1,846 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="Overpass API 0.7.59 e21c39fe">
+<note>The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.</note>
+<meta osm_base="2023-01-09T08:56:59Z"/>
+
+  <bounds minlat="45.2110000" minlon="5.7860000" maxlat="45.2120000" maxlon="5.7870000"/>
+
+  <node id="137546" lat="45.2114017" lon="5.7917844"/>
+  <node id="137607" lat="45.2115150" lon="5.7909904"/>
+  <node id="137621" lat="45.2116219" lon="5.7897483"/>
+  <node id="137622" lat="45.2115013" lon="5.7882340">
+    <tag k="crossing" v="uncontrolled"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="no"/>
+  </node>
+  <node id="137623" lat="45.2111245" lon="5.7867585"/>
+  <node id="408501445" lat="45.2111746" lon="5.7869322">
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2009"/>
+  </node>
+  <node id="408501446" lat="45.2114946" lon="5.7867748">
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2009"/>
+  </node>
+  <node id="408501447" lat="45.2117115" lon="5.7867722">
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2009"/>
+  </node>
+  <node id="408501448" lat="45.2118297" lon="5.7867607">
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2009"/>
+  </node>
+  <node id="408501449" lat="45.2122256" lon="5.7865842">
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2009"/>
+  </node>
+  <node id="498507141" lat="45.2112566" lon="5.7872383">
+    <tag k="bus" v="yes"/>
+    <tag k="highway" v="bus_stop"/>
+    <tag k="name" v="Malacher"/>
+    <tag k="network" v="TAG"/>
+    <tag k="public_transport" v="stop_position"/>
+    <tag k="wheelchair" v="yes"/>
+  </node>
+  <node id="498507149" lat="45.2115526" lon="5.7906708">
+    <tag k="bus" v="yes"/>
+    <tag k="highway" v="bus_stop"/>
+    <tag k="name" v="Les Béalières"/>
+    <tag k="network" v="TAG"/>
+    <tag k="public_transport" v="stop_position"/>
+    <tag k="wheelchair" v="yes"/>
+  </node>
+  <node id="498507156" lat="45.2114367" lon="5.7914490">
+    <tag k="bus" v="yes"/>
+    <tag k="highway" v="bus_stop"/>
+    <tag k="name" v="Les Béalières"/>
+    <tag k="network" v="TAG"/>
+    <tag k="public_transport" v="stop_position"/>
+    <tag k="wheelchair" v="yes"/>
+  </node>
+  <node id="550267191" lat="45.2115763" lon="5.7920587">
+    <tag k="crossing" v="uncontrolled"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2009"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="669411149" lat="45.2120553" lon="5.7866059">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+    <tag k="traffic_calming" v="table"/>
+  </node>
+  <node id="669411150" lat="45.2117744" lon="5.7898542">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="no"/>
+  </node>
+  <node id="669411177" lat="45.2116967" lon="5.7825431"/>
+  <node id="669411179" lat="45.2121783" lon="5.7854049"/>
+  <node id="669411181" lat="45.2120936" lon="5.7863882"/>
+  <node id="687194103" lat="45.2111766" lon="5.7867114"/>
+  <node id="687194105" lat="45.2111994" lon="5.7868069"/>
+  <node id="687194106" lat="45.2112309" lon="5.7869017">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="687194107" lat="45.2120677" lon="5.7870400"/>
+  <node id="687194108" lat="45.2120287" lon="5.7869769"/>
+  <node id="687194109" lat="45.2119990" lon="5.7869417"/>
+  <node id="737727472" lat="45.2138968" lon="5.7860442"/>
+  <node id="737727475" lat="45.2140145" lon="5.7859906">
+    <tag k="expected_lwn_route_relations" v="2"/>
+    <tag k="lwn_name" v="Bérivière"/>
+    <tag k="network:type" v="node_network"/>
+  </node>
+  <node id="798569531" lat="45.2114344" lon="5.7879445"/>
+  <node id="1121742826" lat="45.2116515" lon="5.7910075">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="1227313638" lat="45.2110455" lon="5.7866565"/>
+  <node id="1934333902" lat="45.2114189" lon="5.7873566"/>
+  <node id="1934333904" lat="45.2113074" lon="5.7863287"/>
+  <node id="1934333919" lat="45.2113025" lon="5.7863108"/>
+  <node id="1934333921" lat="45.2113024" lon="5.7868710"/>
+  <node id="1934333922" lat="45.2114362" lon="5.7868021"/>
+  <node id="1934333924" lat="45.2114544" lon="5.7856844"/>
+  <node id="1934333935" lat="45.2112855" lon="5.7862464"/>
+  <node id="1934333958" lat="45.2121529" lon="5.7865851"/>
+  <node id="1934335344" lat="45.2119043" lon="5.7867131">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="no"/>
+  </node>
+  <node id="1934335346" lat="45.2119398" lon="5.7868471"/>
+  <node id="1945401450" lat="45.2115492" lon="5.7816051">
+    <tag k="highway" v="traffic_signals"/>
+  </node>
+  <node id="1945414244" lat="45.2120681" lon="5.7842958"/>
+  <node id="1945414245" lat="45.2120178" lon="5.7867814"/>
+  <node id="1945414246" lat="45.2115607" lon="5.7818742"/>
+  <node id="1945414248" lat="45.2121875" lon="5.7852013"/>
+  <node id="1945414249" lat="45.2121523" lon="5.7847620"/>
+  <node id="1945414252" lat="45.2121801" lon="5.7849920"/>
+  <node id="1945414253" lat="45.2121508" lon="5.7856725"/>
+  <node id="1945414254" lat="45.2120676" lon="5.7865055"/>
+  <node id="1945449022" lat="45.2121235" lon="5.7859877"/>
+  <node id="1945463279" lat="45.2130099" lon="5.7863494"/>
+  <node id="1961399763" lat="45.2116108" lon="5.7901239"/>
+  <node id="1961399764" lat="45.2114754" lon="5.7911682"/>
+  <node id="2104812141" lat="45.2115920" lon="5.7919917"/>
+  <node id="2132536277" lat="45.2116170" lon="5.7899126"/>
+  <node id="2213749472" lat="45.2114015" lon="5.7916868">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="2213749477" lat="45.2115013" lon="5.7910440"/>
+  <node id="2213749487" lat="45.2115559" lon="5.7921001"/>
+  <node id="2213749488" lat="45.2115676" lon="5.7918226"/>
+  <node id="2468866795" lat="45.2112011" lon="5.7870216">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="yes"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="2468866800" lat="45.2115759" lon="5.7904682">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="2864845825" lat="45.2115411" lon="5.7867613"/>
+  <node id="2864845829" lat="45.2126390" lon="5.7864604"/>
+  <node id="2864845845" lat="45.2132149" lon="5.7862854"/>
+  <node id="2864845878" lat="45.2137279" lon="5.7861254"/>
+  <node id="2976021111" lat="45.2118963" lon="5.7883241"/>
+  <node id="3346621537" lat="45.2114097" lon="5.7864134"/>
+  <node id="3346621538" lat="45.2114560" lon="5.7863653"/>
+  <node id="3346621539" lat="45.2114584" lon="5.7863841"/>
+  <node id="3346621540" lat="45.2114667" lon="5.7865588"/>
+  <node id="3346621541" lat="45.2115902" lon="5.7866598"/>
+  <node id="3346621542" lat="45.2115642" lon="5.7861953"/>
+  <node id="3346621543" lat="45.2115848" lon="5.7863044"/>
+  <node id="3346621545" lat="45.2116028" lon="5.7860833"/>
+  <node id="3346621546" lat="45.2116724" lon="5.7867018"/>
+  <node id="3346621547" lat="45.2116781" lon="5.7860488"/>
+  <node id="3346621548" lat="45.2117401" lon="5.7860288"/>
+  <node id="3346621549" lat="45.2117814" lon="5.7866889"/>
+  <node id="3346621550" lat="45.2118095" lon="5.7863513"/>
+  <node id="3346621551" lat="45.2118128" lon="5.7860792"/>
+  <node id="3346621552" lat="45.2118219" lon="5.7864017"/>
+  <node id="3346621553" lat="45.2118417" lon="5.7862692"/>
+  <node id="3346621554" lat="45.2118491" lon="5.7862328"/>
+  <node id="3346621555" lat="45.2118896" lon="5.7866385"/>
+  <node id="4008292481" lat="45.2108281" lon="5.7862000"/>
+  <node id="4008292482" lat="45.2109180" lon="5.7863346"/>
+  <node id="4008292483" lat="45.2109056" lon="5.7864180"/>
+  <node id="4008292484" lat="45.2109926" lon="5.7864872"/>
+  <node id="4008292485" lat="45.2110251" lon="5.7864167"/>
+  <node id="4008292486" lat="45.2110575" lon="5.7864198"/>
+  <node id="4008292487" lat="45.2111218" lon="5.7864052"/>
+  <node id="4010311729" lat="45.2121152" lon="5.7861134"/>
+  <node id="5312439776" lat="45.2114125" lon="5.7916192"/>
+  <node id="6006026826" lat="45.2116668" lon="5.7908510"/>
+  <node id="6006026842" lat="45.2114826" lon="5.7911335"/>
+  <node id="6006026989" lat="45.2108470" lon="5.7865578"/>
+  <node id="6006026990" lat="45.2109288" lon="5.7866091"/>
+  <node id="6006026991" lat="45.2110545" lon="5.7867620"/>
+  <node id="6006026992" lat="45.2112463" lon="5.7869518">
+    <tag k="barrier" v="kerb"/>
+    <tag k="kerb" v="flush"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="6006026993" lat="45.2111035" lon="5.7868595"/>
+  <node id="6006026994" lat="45.2112725" lon="5.7871080"/>
+  <node id="6006026995" lat="45.2113553" lon="5.7874274"/>
+  <node id="6006026996" lat="45.2113137" lon="5.7874467">
+    <tag k="crossing" v="uncontrolled"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="6006026997" lat="45.2112727" lon="5.7874627">
+    <tag k="barrier" v="kerb"/>
+    <tag k="kerb" v="lowered"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="6006026998" lat="45.2112618" lon="5.7874347"/>
+  <node id="6006026999" lat="45.2113229" lon="5.7873315"/>
+  <node id="6006027007" lat="45.2117895" lon="5.7896642"/>
+  <node id="6006027008" lat="45.2117298" lon="5.7902564"/>
+  <node id="6006027085" lat="45.2112321" lon="5.7873454"/>
+  <node id="6006027086" lat="45.2112146" lon="5.7873293"/>
+  <node id="6006027087" lat="45.2111730" lon="5.7871590"/>
+  <node id="6006027088" lat="45.2112584" lon="5.7869981"/>
+  <node id="6006027089" lat="45.2111546" lon="5.7870436"/>
+  <node id="6006027090" lat="45.2111678" lon="5.7871214"/>
+  <node id="6006027093" lat="45.2115658" lon="5.7890440">
+    <tag k="crossing" v="uncontrolled"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="6006027100" lat="45.2116123" lon="5.7913134"/>
+  <node id="6006027101" lat="45.2115695" lon="5.7917174"/>
+  <node id="6569995490" lat="45.2117061" lon="5.7904804"/>
+  <node id="7472991658" lat="45.2112263" lon="5.7868853">
+    <tag k="button_operated" v="no"/>
+    <tag k="crossing" v="traffic_signals"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="mapillary" v="825933368276481"/>
+    <tag k="source" v="Mapillary Street Objects"/>
+    <tag k="survey:date" v="2018-08-16"/>
+    <tag k="tactile_paving" v="yes"/>
+    <tag k="traffic_signals:sound" v="no"/>
+    <tag k="traffic_signals:vibration" v="no"/>
+  </node>
+  <node id="7627208003" lat="45.2118828" lon="5.7866417"/>
+  <node id="7659235595" lat="45.2117196" lon="5.7903524"/>
+  <node id="7659235597" lat="45.2119259" lon="5.7879259"/>
+  <node id="7659235604" lat="45.2119256" lon="5.7879348">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+  </node>
+  <node id="7659235605" lat="45.2116056" lon="5.7867595"/>
+  <node id="7659235606" lat="45.2116215" lon="5.7866752"/>
+  <node id="8260390441" lat="45.2120317" lon="5.7841266"/>
+  <node id="8262530140" lat="45.2119508" lon="5.7875910"/>
+  <node id="8262530148" lat="45.2116131" lon="5.7857380"/>
+  <node id="8262530153" lat="45.2114371" lon="5.7856074"/>
+  <node id="8276521097" lat="45.2111492" lon="5.7868322">
+    <tag k="crossing" v="uncontrolled"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="8284143780" lat="45.2113665" lon="5.7874749"/>
+  <node id="8558408563" lat="45.2127186" lon="5.7864351">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="8558408567" lat="45.2134703" lon="5.7862057"/>
+  <node id="8644186293" lat="45.2113890" lon="5.7866327"/>
+  <node id="8644186294" lat="45.2112545" lon="5.7866948"/>
+  <node id="8644186295" lat="45.2111763" lon="5.7863815"/>
+  <node id="8646354199" lat="45.2117241" lon="5.7857377"/>
+  <node id="8646354200" lat="45.2118351" lon="5.7857823"/>
+  <node id="8646354201" lat="45.2119480" lon="5.7858715"/>
+  <node id="8646354202" lat="45.2120030" lon="5.7859635"/>
+  <node id="8646354203" lat="45.2120433" lon="5.7861712"/>
+  <node id="8646354204" lat="45.2120305" lon="5.7863065"/>
+  <node id="8646354205" lat="45.2120070" lon="5.7864138"/>
+  <node id="8646354206" lat="45.2119549" lon="5.7865184"/>
+  <node id="8646354207" lat="45.2118940" lon="5.7865602">
+    <tag k="noexit" v="yes"/>
+  </node>
+  <node id="8646354209" lat="45.2118234" lon="5.7861242"/>
+  <node id="8646354210" lat="45.2120163" lon="5.7860319"/>
+  <node id="8646354211" lat="45.2121343" lon="5.7858595"/>
+  <node id="8646354215" lat="45.2118503" lon="5.7861113">
+    <tag k="barrier" v="cycle_barrier"/>
+    <tag k="cycle_barrier" v="double"/>
+  </node>
+  <node id="8646365418" lat="45.2114572" lon="5.7863750"/>
+  <node id="8646365419" lat="45.2113968" lon="5.7864026"/>
+  <node id="8648033703" lat="45.2116383" lon="5.7858585">
+    <tag k="barrier" v="block"/>
+    <tag k="material" v="concrete"/>
+  </node>
+  <node id="8648050182" lat="45.2121714" lon="5.7854724"/>
+  <node id="8663905948" lat="45.2110815" lon="5.7865496"/>
+  <node id="8663905949" lat="45.2110278" lon="5.7865119"/>
+  <node id="8663905950" lat="45.2115180" lon="5.7866923"/>
+  <node id="8663905952" lat="45.2114195" lon="5.7867406">
+    <tag k="crossing" v="unmarked"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="no"/>
+  </node>
+  <node id="8663905953" lat="45.2112615" lon="5.7868190"/>
+  <node id="8663905954" lat="45.2113349" lon="5.7864299">
+    <tag k="crossing" v="unmarked"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="no"/>
+  </node>
+  <node id="8663905955" lat="45.2112028" lon="5.7864882">
+    <tag k="crossing" v="unmarked"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="no"/>
+  </node>
+  <node id="8663905956" lat="45.2110746" lon="5.7865448"/>
+  <node id="8663905957" lat="45.2109724" lon="5.7865899">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="yes"/>
+    <tag k="highway" v="crossing"/>
+    <tag k="tactile_paving" v="yes"/>
+  </node>
+  <node id="8663905962" lat="45.2114576" lon="5.7880451"/>
+  <node id="8663986596" lat="45.2118136" lon="5.7831114"/>
+  <node id="8663986597" lat="45.2117940" lon="5.7830199"/>
+  <node id="8880381896" lat="45.2118906" lon="5.7883954"/>
+  <node id="8911559460" lat="45.2134549" lon="5.7862105"/>
+  <node id="9079845932" lat="45.2111560" lon="5.7867199"/>
+  <node id="9079845933" lat="45.2110375" lon="5.7865612"/>
+  <node id="9205118291" lat="45.2108957" lon="5.7864417"/>
+  <node id="9205118301" lat="45.2121362" lon="5.7846730"/>
+  <node id="9209907809" lat="45.2112185" lon="5.7867672">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+  </node>
+  <node id="9209907810" lat="45.2112229" lon="5.7867603"/>
+  <node id="9609831461" lat="45.2111309" lon="5.7865199"/>
+  <node id="9609831462" lat="45.2110983" lon="5.7864099"/>
+  <node id="9609831463" lat="45.2111836" lon="5.7861911"/>
+  <node id="9609831464" lat="45.2111428" lon="5.7863211"/>
+  <node id="9609831465" lat="45.2112136" lon="5.7861067"/>
+  <node id="9609831466" lat="45.2112392" lon="5.7861204"/>
+  <node id="9609831467" lat="45.2113104" lon="5.7861637"/>
+  <node id="9609831468" lat="45.2113583" lon="5.7856119"/>
+  <node id="9609831469" lat="45.2112775" lon="5.7858880"/>
+  <node id="9609831471" lat="45.2113734" lon="5.7859541"/>
+  <node id="9609831472" lat="45.2110878" lon="5.7862865"/>
+  <node id="9609831473" lat="45.2111074" lon="5.7863577"/>
+  <node id="9609831474" lat="45.2111369" lon="5.7863451"/>
+  <node id="9609831475" lat="45.2106308" lon="5.7866841"/>
+  <node id="9609831476" lat="45.2107485" lon="5.7872387"/>
+  <node id="9609831477" lat="45.2110914" lon="5.7870799"/>
+  <node id="9609831478" lat="45.2110520" lon="5.7869223"/>
+  <node id="9609831479" lat="45.2110199" lon="5.7869060"/>
+  <node id="9609831480" lat="45.2107789" lon="5.7866421"/>
+  <node id="9609831482" lat="45.2107250" lon="5.7871282"/>
+  <node id="9609831486" lat="45.2111792" lon="5.7874637"/>
+  <node id="9609831487" lat="45.2110809" lon="5.7870848"/>
+  <node id="9609831488" lat="45.2110404" lon="5.7869330"/>
+  <node id="9609831489" lat="45.2107720" lon="5.7866441"/>
+  <node id="9609831490" lat="45.2107594" lon="5.7865966"/>
+  <node id="9609831491" lat="45.2109330" lon="5.7868108"/>
+  <node id="9609831492" lat="45.2110027" lon="5.7866990"/>
+  <node id="9609831493" lat="45.2110321" lon="5.7869235"/>
+  <node id="9609831495" lat="45.2110402" lon="5.7869163"/>
+  <node id="9609831497" lat="45.2106567" lon="5.7866768"/>
+  <node id="9609831499" lat="45.2109745" lon="5.7870045"/>
+  <node id="9615076912" lat="45.2112225" lon="5.7861115"/>
+  <node id="9615076913" lat="45.2112635" lon="5.7861352"/>
+  <node id="9628705493" lat="45.2108638" lon="5.7867391"/>
+  <node id="9628705495" lat="45.2107980" lon="5.7866710"/>
+  <node id="9628705498" lat="45.2106679" lon="5.7867327"/>
+  <node id="9628705499" lat="45.2107571" lon="5.7867028"/>
+  <node id="9628705500" lat="45.2107736" lon="5.7867189"/>
+  <node id="9628705501" lat="45.2108345" lon="5.7867915"/>
+  <node id="9628705502" lat="45.2109034" lon="5.7868643"/>
+  <node id="9628705503" lat="45.2109963" lon="5.7869738"/>
+  <node id="9628705512" lat="45.2120711" lon="5.7864898"/>
+  <node id="9781138884" lat="45.2110637" lon="5.7870202"/>
+  <node id="9781138885" lat="45.2110265" lon="5.7870403"/>
+  <node id="9841137958" lat="45.2114045" lon="5.7856093">
+    <tag k="barrier" v="bollard"/>
+    <tag k="bollard" v="fixed"/>
+  </node>
+  <node id="9965952022" lat="45.2115935" lon="5.7820802"/>
+  <node id="10006877272" lat="45.2115289" lon="5.7871152"/>
+  <node id="10006877273" lat="45.2115359" lon="5.7869691"/>
+  <node id="10006877274" lat="45.2113791" lon="5.7871908"/>
+  <node id="10006877277" lat="45.2114860" lon="5.7871602"/>
+  <node id="10006877278" lat="45.2114798" lon="5.7869982"/>
+  <node id="10006877279" lat="45.2114575" lon="5.7868435"/>
+  <node id="10006877280" lat="45.2114466" lon="5.7867973"/>
+  <node id="10006877281" lat="45.2117484" lon="5.7869881"/>
+  <node id="10006877282" lat="45.2115045" lon="5.7869676"/>
+  <node id="10006877283" lat="45.2115082" lon="5.7868229"/>
+  <node id="10006877284" lat="45.2115712" lon="5.7867896"/>
+  <node id="10006877285" lat="45.2117526" lon="5.7868025"/>
+  <node id="10006877286" lat="45.2115384" lon="5.7868069"/>
+  <node id="10006877288" lat="45.2117384" lon="5.7861810"/>
+  <node id="10006877289" lat="45.2116294" lon="5.7862872"/>
+  <node id="10006877290" lat="45.2118548" lon="5.7866268"/>
+  <node id="10006877291" lat="45.2116777" lon="5.7864637"/>
+  <node id="10006877292" lat="45.2117334" lon="5.7866946"/>
+  <node id="10006877293" lat="45.2117571" lon="5.7867681">
+    <tag k="highway" v="crossing"/>
+  </node>
+  <node id="10006877294" lat="45.2117688" lon="5.7868049"/>
+  <node id="10006877295" lat="45.2117858" lon="5.7868683"/>
+  <node id="10006877296" lat="45.2117509" lon="5.7868761"/>
+  <node id="10006877297" lat="45.2112764" lon="5.7868821">
+    <tag k="crossing" v="marked"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="highway" v="crossing"/>
+  </node>
+  <way id="8015856">
+    <nd ref="8663905957"/>
+    <nd ref="1227313638"/>
+    <nd ref="137623"/>
+    <nd ref="8276521097"/>
+    <nd ref="408501445"/>
+    <nd ref="2468866795"/>
+    <nd ref="498507141"/>
+    <nd ref="6006026996"/>
+    <nd ref="798569531"/>
+    <nd ref="8663905962"/>
+    <nd ref="137622"/>
+    <nd ref="6006027093"/>
+    <nd ref="137621"/>
+    <nd ref="2132536277"/>
+    <nd ref="1961399763"/>
+    <nd ref="2468866800"/>
+    <nd ref="498507149"/>
+    <nd ref="137607"/>
+    <nd ref="2213749477"/>
+    <nd ref="6006026842"/>
+    <nd ref="1961399764"/>
+    <nd ref="498507156"/>
+    <nd ref="5312439776"/>
+    <nd ref="2213749472"/>
+    <nd ref="137546"/>
+    <tag k="highway" v="tertiary"/>
+    <tag k="lanes" v="2"/>
+    <tag k="lit" v="yes"/>
+    <tag k="maxspeed" v="50"/>
+    <tag k="name" v="Avenue du Granier"/>
+    <tag k="parking:lane:both" v="no"/>
+    <tag k="sidewalk" v="separate"/>
+    <tag k="source:maxspeed" v="FR:urban"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="34857451">
+    <nd ref="408501445"/>
+    <nd ref="687194106"/>
+    <nd ref="10006877297"/>
+    <nd ref="1934333921"/>
+    <nd ref="1934333922"/>
+    <nd ref="10006877280"/>
+    <nd ref="408501446"/>
+    <tag k="highway" v="residential"/>
+    <tag k="lit" v="yes"/>
+    <tag k="name" v="Chemin de Bérivière"/>
+    <tag k="parking:lane:both" v="no"/>
+    <tag k="sidewalk" v="no"/>
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2009"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="183071793">
+    <nd ref="1934333904"/>
+    <nd ref="1934333919"/>
+    <nd ref="1934333935"/>
+    <nd ref="9609831467"/>
+    <nd ref="9609831471"/>
+    <nd ref="1934333924"/>
+    <tag k="highway" v="service"/>
+    <tag k="name" v="Allée des Amphores"/>
+    <tag k="parking:lane:both" v="perpendicular"/>
+    <tag k="service" v="parking_aisle"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="183071797">
+    <nd ref="1934333921"/>
+    <nd ref="10006877274"/>
+    <nd ref="1934333902"/>
+    <tag k="bicycle" v="designated"/>
+    <tag k="highway" v="service"/>
+    <tag k="parking:lane:both" v="separate"/>
+    <tag k="service" v="parking_aisle"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="239072277">
+    <nd ref="6006027088"/>
+    <nd ref="2468866795"/>
+    <nd ref="6006027089"/>
+    <tag k="footway" v="crossing"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="327853703">
+    <nd ref="3346621547"/>
+    <nd ref="3346621545"/>
+    <nd ref="3346621542"/>
+    <nd ref="3346621543"/>
+    <nd ref="3346621538"/>
+    <nd ref="8646365418"/>
+    <nd ref="3346621539"/>
+    <nd ref="3346621537"/>
+    <nd ref="3346621540"/>
+    <nd ref="8663905950"/>
+    <nd ref="3346621541"/>
+    <nd ref="7659235606"/>
+    <nd ref="3346621546"/>
+    <nd ref="10006877292"/>
+    <nd ref="3346621549"/>
+    <nd ref="7627208003"/>
+    <nd ref="3346621555"/>
+    <nd ref="3346621552"/>
+    <nd ref="3346621550"/>
+    <nd ref="3346621553"/>
+    <nd ref="3346621554"/>
+    <nd ref="8646354209"/>
+    <nd ref="3346621551"/>
+    <nd ref="3346621548"/>
+    <nd ref="3346621547"/>
+    <tag k="area" v="yes"/>
+    <tag k="highway" v="pedestrian"/>
+    <tag k="lit" v="yes"/>
+    <tag k="name" v="Place des Tuileaux"/>
+    <tag k="smoothness" v="good"/>
+    <tag k="surface" v="paving_stones"/>
+  </way>
+  <way id="398052313">
+    <nd ref="4008292481"/>
+    <nd ref="4008292482"/>
+    <nd ref="4008292485"/>
+    <nd ref="4008292486"/>
+    <nd ref="9609831462"/>
+    <nd ref="4008292487"/>
+    <nd ref="8644186295"/>
+    <nd ref="1934333904"/>
+    <tag k="highway" v="service"/>
+    <tag k="service" v="parking_aisle"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="398264576">
+    <nd ref="687194107"/>
+    <nd ref="687194108"/>
+    <nd ref="687194109"/>
+    <nd ref="1934335346"/>
+    <nd ref="1934335344"/>
+    <tag k="bicycle" v="yes"/>
+    <tag k="highway" v="pedestrian"/>
+    <tag k="lit" v="no"/>
+    <tag k="motor_vehicle" v="no"/>
+    <tag k="name" v="Le Routoir"/>
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2009"/>
+    <tag k="surface" v="concrete"/>
+  </way>
+  <way id="636992320">
+    <nd ref="687194105"/>
+    <nd ref="7472991658"/>
+    <nd ref="687194106"/>
+    <nd ref="6006026992"/>
+    <tag k="footway" v="crossing"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="636992327">
+    <nd ref="6006026997"/>
+    <nd ref="6006026998"/>
+    <nd ref="6006027085"/>
+    <nd ref="6006027086"/>
+    <nd ref="6006027087"/>
+    <nd ref="6006027090"/>
+    <nd ref="6006027089"/>
+    <nd ref="6006026993"/>
+    <nd ref="6006026991"/>
+    <nd ref="9609831492"/>
+    <nd ref="6006026990"/>
+    <nd ref="6006026989"/>
+    <tag k="footway" v="sidewalk"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="636992344">
+    <nd ref="1945401450"/>
+    <nd ref="1945414246"/>
+    <nd ref="9965952022"/>
+    <nd ref="669411177"/>
+    <nd ref="8663986597"/>
+    <nd ref="8663986596"/>
+    <nd ref="8260390441"/>
+    <nd ref="1945414244"/>
+    <nd ref="9205118301"/>
+    <nd ref="1945414249"/>
+    <nd ref="1945414252"/>
+    <nd ref="1945414248"/>
+    <nd ref="669411179"/>
+    <nd ref="8648050182"/>
+    <nd ref="1945414253"/>
+    <nd ref="8646354211"/>
+    <nd ref="1945449022"/>
+    <nd ref="4010311729"/>
+    <nd ref="669411181"/>
+    <nd ref="9628705512"/>
+    <nd ref="1945414254"/>
+    <nd ref="669411149"/>
+    <nd ref="1945414245"/>
+    <nd ref="687194109"/>
+    <nd ref="8262530140"/>
+    <nd ref="7659235597"/>
+    <nd ref="7659235604"/>
+    <nd ref="2976021111"/>
+    <nd ref="8880381896"/>
+    <nd ref="6006027007"/>
+    <nd ref="669411150"/>
+    <nd ref="6006027008"/>
+    <nd ref="7659235595"/>
+    <nd ref="6569995490"/>
+    <nd ref="6006026826"/>
+    <nd ref="1121742826"/>
+    <nd ref="6006027100"/>
+    <nd ref="6006027101"/>
+    <nd ref="2213749488"/>
+    <nd ref="2104812141"/>
+    <nd ref="550267191"/>
+    <nd ref="2213749487"/>
+    <tag k="bicycle" v="designated"/>
+    <tag k="foot" v="designated"/>
+    <tag k="highway" v="cycleway"/>
+    <tag k="motor_vehicle" v="no"/>
+    <tag k="name" v="Chemin des Béalières"/>
+    <tag k="segregated" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="816638232">
+    <nd ref="1934335344"/>
+    <nd ref="7627208003"/>
+    <tag k="highway" v="pedestrian"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="816638233">
+    <nd ref="408501446"/>
+    <nd ref="2864845825"/>
+    <nd ref="7659235605"/>
+    <nd ref="408501447"/>
+    <nd ref="10006877293"/>
+    <nd ref="408501448"/>
+    <nd ref="1934335344"/>
+    <tag k="highway" v="residential"/>
+    <tag k="lit" v="yes"/>
+    <tag k="maxspeed" v="30"/>
+    <tag k="name" v="Chemin de Bérivière"/>
+    <tag k="sidewalk" v="left"/>
+    <tag k="smoothness" v="excellent"/>
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre;mise à jour : 2009"/>
+    <tag k="surface" v="paving_stones"/>
+  </way>
+  <way id="820242204">
+    <nd ref="7659235605"/>
+    <nd ref="7659235606"/>
+    <tag k="highway" v="service"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="888721411">
+    <nd ref="3346621547"/>
+    <nd ref="8648033703"/>
+    <nd ref="8262530148"/>
+    <tag k="bicycle" v="yes"/>
+    <tag k="highway" v="footway"/>
+    <tag k="surface" v="paving_stones"/>
+  </way>
+  <way id="890497555">
+    <nd ref="4008292483"/>
+    <nd ref="4008292484"/>
+    <nd ref="8663905949"/>
+    <nd ref="8663905956"/>
+    <nd ref="8663905948"/>
+    <nd ref="687194103"/>
+    <nd ref="9209907809"/>
+    <nd ref="8663905953"/>
+    <nd ref="10006877297"/>
+    <tag k="bicycle" v="designated"/>
+    <tag k="cycleway:surface" v="asphalt"/>
+    <tag k="foot" v="no"/>
+    <tag k="highway" v="cycleway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="motor_vehicle" v="no"/>
+    <tag k="oneway" v="no"/>
+    <tag k="segregated" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="890497556">
+    <nd ref="687194105"/>
+    <nd ref="8276521097"/>
+    <nd ref="6006026993"/>
+    <tag k="crossing:island" v="no"/>
+    <tag k="footway" v="crossing"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+    <tag k="tactile_paving" v="yes"/>
+  </way>
+  <way id="891036131">
+    <nd ref="1934335344"/>
+    <nd ref="669411149"/>
+    <nd ref="1934333958"/>
+    <nd ref="408501449"/>
+    <nd ref="2864845829"/>
+    <nd ref="8558408563"/>
+    <nd ref="1945463279"/>
+    <nd ref="2864845845"/>
+    <nd ref="8911559460"/>
+    <nd ref="8558408567"/>
+    <nd ref="2864845878"/>
+    <nd ref="737727472"/>
+    <nd ref="737727475"/>
+    <tag k="highway" v="residential"/>
+    <tag k="lit" v="yes"/>
+    <tag k="name" v="Chemin de Bérivière"/>
+    <tag k="sidewalk" v="left"/>
+    <tag k="source" v="cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2009"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="891292120">
+    <nd ref="6006026992"/>
+    <nd ref="6006027088"/>
+    <nd ref="6006026994"/>
+    <nd ref="6006026999"/>
+    <nd ref="6006026995"/>
+    <nd ref="8284143780"/>
+    <tag k="footway" v="sidewalk"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="932511914">
+    <nd ref="8644186295"/>
+    <nd ref="8663905955"/>
+    <nd ref="8644186294"/>
+    <tag k="highway" v="service"/>
+    <tag k="oneway" v="yes"/>
+    <tag k="parking:lane:both" v="perpendicular"/>
+    <tag k="service" v="parking_aisle"/>
+    <tag k="sidewalk" v="no"/>
+    <tag k="smoothness" v="excellent"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="932511915">
+    <nd ref="1934333922"/>
+    <nd ref="8663905952"/>
+    <nd ref="8644186293"/>
+    <tag k="highway" v="service"/>
+    <tag k="name" v="Allée des Amphores"/>
+    <tag k="service" v="parking_aisle"/>
+    <tag k="smoothness" v="excellent"/>
+    <tag k="surface" v="concrete"/>
+  </way>
+  <way id="932511916">
+    <nd ref="8644186293"/>
+    <nd ref="8663905954"/>
+    <nd ref="1934333904"/>
+    <tag k="highway" v="service"/>
+    <tag k="name" v="Allée des Amphores"/>
+    <tag k="oneway" v="yes"/>
+    <tag k="parking:lane:both" v="perpendicular"/>
+    <tag k="service" v="parking_aisle"/>
+    <tag k="sidewalk" v="no"/>
+    <tag k="smoothness" v="excellent"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="932760752">
+    <nd ref="8262530148"/>
+    <nd ref="8646354199"/>
+    <nd ref="8646354200"/>
+    <nd ref="8646354201"/>
+    <nd ref="8646354202"/>
+    <nd ref="8646354210"/>
+    <nd ref="8646354203"/>
+    <nd ref="8646354204"/>
+    <nd ref="8646354205"/>
+    <nd ref="8646354206"/>
+    <nd ref="8646354207"/>
+    <tag k="highway" v="service"/>
+    <tag k="service" v="parking_aisle"/>
+    <tag k="surface" v="asphalt"/>
+  </way>
+  <way id="932760754">
+    <nd ref="8646354210"/>
+    <nd ref="8646354215"/>
+    <nd ref="8646354209"/>
+    <tag k="highway" v="footway"/>
+    <tag k="layer" v="-1"/>
+    <tag k="surface" v="paving_stones"/>
+  </way>
+  <way id="932760756">
+    <nd ref="8646365418"/>
+    <nd ref="8646365419"/>
+    <tag k="handrail" v="yes"/>
+    <tag k="highway" v="steps"/>
+    <tag k="incline" v="down"/>
+    <tag k="lit" v="yes"/>
+    <tag k="ramp" v="no"/>
+    <tag k="step_count" v="16"/>
+    <tag k="surface" v="paving_stones"/>
+  </way>
+  <way id="934930474">
+    <nd ref="9079845933"/>
+    <nd ref="8663905956"/>
+    <nd ref="9609831461"/>
+    <nd ref="8663905955"/>
+    <nd ref="8663905954"/>
+    <nd ref="8646365419"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="motor_vehicle" v="no"/>
+    <tag k="surface" v="concrete"/>
+  </way>
+  <way id="934930475">
+    <nd ref="687194105"/>
+    <nd ref="8663905953"/>
+    <nd ref="8663905952"/>
+    <nd ref="8663905950"/>
+    <nd ref="3346621541"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="concrete"/>
+  </way>
+  <way id="981637580">
+    <nd ref="687194105"/>
+    <nd ref="9079845932"/>
+    <nd ref="9079845933"/>
+    <nd ref="9205118291"/>
+    <tag k="footway" v="sidewalk"/>
+    <tag k="highway" v="footway"/>
+    <tag k="lit" v="yes"/>
+    <tag k="surface" v="concrete"/>
+  </

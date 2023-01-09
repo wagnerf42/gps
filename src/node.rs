@@ -114,16 +114,6 @@ impl Node {
 
     pub(crate) fn is(&self, other: &Node) -> bool {
         let d = self.squared_distance_between(other).sqrt();
-        if d < 1. / 256_000. {
-            true
-        } else {
-            if self.y == 45.187000000000005 {
-                eprintln!(
-                    "comparing {self:?} and {other:?} d: {d} > {} ",
-                    1. / 256_000.
-                );
-            }
-            false
-        } // TODO: check that
+        d <= TILE_BORDER_THICKNESS
     }
 }
