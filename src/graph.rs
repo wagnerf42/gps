@@ -47,7 +47,7 @@ impl Map {
         let end_node = self.find_ending_node(gps_start, street);
         let greedy_path_length = self.greedy_path(&starting_node, &end_node);
         eprintln!("greedy path has length {greedy_path_length}");
-        let path = self.a_star(&starting_node, &end_node, greedy_path_length);
+        let path = self.low_level_a_star(&starting_node, &end_node, greedy_path_length);
         save_svg(
             "path.svg",
             self.bounding_box(),
@@ -84,6 +84,45 @@ impl Map {
             }
             if current_node.is(end) {
                 return rebuild_path(&current_node, &predecessors);
+            }
+            heap.extend(
+                self.neighbours(&current_node)
+                    .map(|travel| HeapEntry {
+                        predecessor: Some(current_node),
+                        travel,
+                        distance: entry.distance + self.way_length(travel[1].way_id),
+                    })
+                    .filter(|entry| {
+                        entry.distance + entry.travel[1].squared_distance_between(end).sqrt()
+                            < greedy_path_length
+                    }),
+            );
+        }
+        Vec::new()
+    }
+
+    fn low_level_a_star(&self, start: &GNode, end: &GNode, greedy_path_length: f64) -> Vec<Node> {
+        let mut heap = BinaryHeap::new();
+        heap.push(HeapEntry {
+            predecessor: None,
+            travel: [*start, *start],
+            distance: 0.,
+        });
+
+        let mut seen_nodes = HashSet::new(); // TODO: replace by bitvec
+        let mut predecessors = Vec::new();
+        while let Some(entry) = heap.pop() {
+            if seen_nodes.contains(&entry.travel[1].id) {
+                continue;
+            }
+            seen_nodes.insert(entry.travel[0].id);
+            seen_nodes.insert(entry.travel[1].id);
+            let current_node = entry.travel[1];
+            if let Some(predecessor) = entry.predecessor {
+                predecessors.push((entry.travel[1], predecessor));
+            }
+            if current_node.is(end) {
+                return rebuild_path_vec(&current_node, &predecessors);
             }
             heap.extend(
                 self.neighbours(&current_node)
@@ -255,6 +294,19 @@ fn rebuild_path(end: &GNode, predecessors: &HashMap<GNode, GNode>) -> Vec<Node> 
     })
     .map(|n| n.node)
     .collect()
+}
+
+fn rebuild_path_vec(end: &GNode, predecessors: &[(GNode, GNode)]) -> Vec<Node> {
+    predecessors
+        .iter()
+        .rev()
+        .fold(vec![end.node], |mut path, (na, prec_na)| {
+            let current_node = path.last().unwrap();
+            if na.node.is(current_node) {
+                path.push(prec_na.node)
+            }
+            path
+        })
 }
 
 struct HeapEntry {
