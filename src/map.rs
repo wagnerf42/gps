@@ -1,5 +1,9 @@
 use itertools::Itertools;
 use std::collections::HashMap;
+use tokio::{
+    fs::File,
+    io::{AsyncWriteExt, BufWriter},
+};
 
 use crate::{CWayId, Node, NodeId, TileKey, WayId};
 
@@ -81,6 +85,36 @@ impl Map {
             side,
             streets: new_streets,
         }
+    }
+
+    pub async fn save<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
+        let mut writer = BufWriter::new(File::create(path).await?);
+        // first, the header
+        writer.write_all(&self.first_tile.0.to_le_bytes()).await?;
+        writer.write_all(&self.first_tile.1.to_le_bytes()).await?;
+        writer.write_all(&self.grid_size.0.to_le_bytes()).await?;
+        writer.write_all(&self.grid_size.1.to_le_bytes()).await?;
+        writer
+            .write_all(&self.start_coordinates.0.to_le_bytes())
+            .await?;
+        writer
+            .write_all(&self.start_coordinates.1.to_le_bytes())
+            .await?;
+        writer.write_all(&self.side.to_le_bytes()).await?;
+        // now, all tiled ways
+        writer
+            .write_all(&self.binary_ways.len().to_le_bytes())
+            .await?;
+        writer.write_all(&self.binary_ways).await?;
+        // now the tiles sizes
+        writer
+            .write_all(&self.tiles_sizes_prefix.len().to_le_bytes())
+            .await?;
+        for s in &self.tiles_sizes_prefix {
+            assert!(*s <= std::u32::MAX as usize); // for now
+            writer.write_all(&(*s as u32).to_le_bytes()).await?;
+        }
+        Ok(())
     }
 
     pub fn node_tiles(&self, node: &Node) -> impl Iterator<Item = (usize, usize)> + '_ {

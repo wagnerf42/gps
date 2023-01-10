@@ -43,6 +43,7 @@ impl std::hash::Hash for GNode {
 
 impl Map {
     pub fn shortest_path(&self, gps_start: &Node, street: &str) -> Vec<Node> {
+        let start = std::time::Instant::now();
         let starting_node = self.find_starting_node(gps_start);
         let end_node = self.find_ending_node(gps_start, street);
         let greedy_path_length = self.greedy_path(&starting_node, &end_node);
@@ -59,6 +60,7 @@ impl Map {
             ],
         )
         .unwrap();
+        eprintln!("shortest path took {:?}", start.elapsed());
         path
     }
 

@@ -8,6 +8,8 @@ in pkgs.mkShell {
     wasm-pack
     pkgconfig
     openssl
+    nodePackages.eslint
+    nodePackages.prettier
     # flow
 
     (with fenix;

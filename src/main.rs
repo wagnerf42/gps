@@ -81,16 +81,21 @@ async fn manual_data_set() -> std::io::Result<(
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    // let (mut nodes, ways, mut streets, side) =
+    //     request_data_set(5.767136, 45.186547, 5.897531, 45.247925, "large2.set").await?;
+
     // let (mut nodes, ways, mut streets, side) = request_data_set(
     //     5.7860000000000005,
     //     45.211,
     //     5.787000000000001,
     //     45.211999999999996,
-    //     "heavy.set",
+    //     "heavy2.set",
     // )
     // .await?;
+
     let (mut nodes, ways, mut streets, side) = load_data_set("large.set").await?;
     // let (mut nodes, ways, mut streets, side) = load_data_set("small.set").await?;
+    // let (mut nodes, ways, mut streets, side) = load_data_set("heavy.set").await?;
     let mut ways = sanitize_ways(ways, &mut streets);
     // save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     simplify_ways(&mut nodes, &mut ways, &mut streets);
@@ -126,6 +131,7 @@ async fn main() -> std::io::Result<()> {
 
     let map = Map::new(&nodes, &ways, streets, &tiles, SIDE);
     let (map_size, tiles_number, max_ways_per_tile) = map.stats();
+    map.save("test.map").await?;
     eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");
     save_svg("dec.svg", map.bounding_box(), std::iter::once(&map as SvgW))?;
     let path = map.shortest_path(&Node::new(5.79, 45.22), "Rue Lavoisier");

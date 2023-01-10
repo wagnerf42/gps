@@ -3,3 +3,5 @@
     <tag k="highway" v="footway"/> ?
     <tag k="surface" v="paving_stones"/> ?
     <tag k="highway" v="service"/> ?
+    <tag k="highway" v="steps"/> ?
+- que faire avec les "area" ??

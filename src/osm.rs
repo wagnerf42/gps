@@ -13,7 +13,7 @@ pub async fn request(
         "https://overpass-api.de/api/interpreter?data=
         [bbox: {ymin}, {xmin}, {ymax}, {xmax}];
         (
-        way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"];
+        way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"];
         >;
         );
         out body;",
