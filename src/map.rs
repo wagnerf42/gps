@@ -215,6 +215,19 @@ impl Map {
         (decoded.0, decoded.1)
     }
 
+    pub fn way_length(&self, way_offset: usize) -> f64 {
+        let way_size = self.binary_ways[way_offset] as usize;
+        let binary_way = &self.binary_ways[way_offset + 1..(way_offset + 1 + 2 * way_size)];
+        binary_way
+            .iter()
+            .map(|b| self.side * *b as f64 / 255.)
+            .tuples()
+            .map(|(x, y)| Node::new(x, y))
+            .tuple_windows()
+            .map(|(n1, n2)| n1.squared_distance_between(&n2).sqrt())
+            .sum::<f64>()
+    }
+
     fn decode_way<'a>(
         &self,
         tile_x: usize,
