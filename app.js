@@ -4,26 +4,28 @@ class Map {
     let file_size = buffer.length;
     let offset = 0;
     // header
-    this.first_tile = Uint64Array(buffer, offset, 2);
-    offset += 2 * 8;
-    this.grid_size = Uint64Array(buffer, offset, 2);
-    offset += 2 * 8;
+    this.first_tile = Uint32Array(buffer, offset, 2);
+    offset += 2 * 4;
+    this.grid_size = Uint32Array(buffer, offset, 2);
+    offset += 2 * 4;
     this.start_coordinates = Float64Array(buffer, offset, 2);
     offset += 2 * 8;
-    let size_array = Float64Array(buffer, offset, 1);
-    this.size = size_array[0];
+    let side_array = Float64Array(buffer, offset, 1);
+    this.side = side_array[0];
     offset += 8;
-    let binary_ways_len = Uint64Array(buffer, offset, 1);
-    offset += 8;
+    let binary_ways_len = Uint32Array(buffer, offset, 1);
+    offset += 4;
     this.binary_ways = Uint8Array(buffer, offset, binary_ways_len);
     offset += binary_ways_len;
-    this.tiles_sizes_prefix = Uint32Array(buffer, offset);
+    this.tiles_sizes_prefix = Uint32Array(buffer, offset, this.grid_size[0]*this.grid_size[1]); // TODO: 24
+    console.log("fully loaded");
   }
   display(current_x, current_y, cos_direction, sin_direction, scale_factor) {
     let local_x = current_x - this.start_coordinates[0];
     let local_y = current_y - this.start_coordinates[1];
-    let tile_x = Math.floor(local_x / self.side);
-    let tile_y = Math.floor(local_y / self.side);
+    let tile_x = Math.floor(local_x / this.side);
+    let tile_y = Math.floor(local_y / this.side);
+      console.log(tile_x, tile_y);
     for (let y = tile_y - 1; y <= tile_y + 1; y++) {
       if (y < 0 || y >= this.grid_size[1]) {
         continue;
@@ -56,17 +58,21 @@ class Map {
     console.log("starting tile", tile_x, tile_y);
     let center_x = g.getWidth() / 2;
     let center_y = g.getHeight() / 2;
-    let tile_num = tile_x + tile_y * self.grid_size[0];
+    let tile_num = tile_x + tile_y * this.grid_size[0];
+    console.log(this.grid_size[0], "num", tile_num, "/", this.tiles_sizes_prefix.length);
     let offset = this.tiles_sizes_prefix[tile_num];
     let upper_limit = this.binary_ways.length;
     if (tile_num + 1 < this.tiles_sizes_prefix.length) {
       upper_limit = this.tiles_sizes_prefix[tile_num + 1];
     }
+    console.log("bin:", offset, upper_limit);
     while (offset < upper_limit) {
+      console.log("new way");
       let way_length = this.binary_ways[offset];
       offset += 1;
       let x = (tile_x + this.binary_ways[offset] / 255) * this.side;
       let y = (tile_y + this.binary_ways[offset + 1] / 255) * this.side;
+      console.log(x, y);
       let scaled_x = x - current_x * scale_factor;
       let scaled_y = y - current_y * scale_factor;
       let rotated_x = scaled_x * cos_direction - scaled_y * sin_direction;
@@ -92,5 +98,5 @@ class Map {
   }
 }
 
-let map = Map("test.map");
+let map = new Map("test.map");
 map.display(5.79, 45.22, 1, 0, 30000);

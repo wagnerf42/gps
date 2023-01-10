@@ -90,10 +90,18 @@ impl Map {
     pub async fn save<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
         let mut writer = BufWriter::new(File::create(path).await?);
         // first, the header
-        writer.write_all(&self.first_tile.0.to_le_bytes()).await?;
-        writer.write_all(&self.first_tile.1.to_le_bytes()).await?;
-        writer.write_all(&self.grid_size.0.to_le_bytes()).await?;
-        writer.write_all(&self.grid_size.1.to_le_bytes()).await?;
+        writer
+            .write_all(&(self.first_tile.0 as u32).to_le_bytes())
+            .await?;
+        writer
+            .write_all(&(self.first_tile.1 as u32).to_le_bytes())
+            .await?;
+        writer
+            .write_all(&(self.grid_size.0 as u32).to_le_bytes())
+            .await?;
+        writer
+            .write_all(&(self.grid_size.1 as u32).to_le_bytes())
+            .await?;
         writer
             .write_all(&self.start_coordinates.0.to_le_bytes())
             .await?;
@@ -103,7 +111,7 @@ impl Map {
         writer.write_all(&self.side.to_le_bytes()).await?;
         // now, all tiled ways
         writer
-            .write_all(&self.binary_ways.len().to_le_bytes())
+            .write_all(&(self.binary_ways.len() as u32).to_le_bytes())
             .await?;
         writer.write_all(&self.binary_ways).await?;
         // now the tiles sizes

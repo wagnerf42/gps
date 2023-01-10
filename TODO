@@ -5,3 +5,4 @@
     <tag k="highway" v="service"/> ?
     <tag k="highway" v="steps"/> ?
 - que faire avec les "area" ??
+- utiliser des UInt24Array pour le prefixe
