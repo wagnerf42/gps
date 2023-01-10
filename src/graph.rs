@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use std::{collections::HashSet, io::Write};
+use std::{
+    collections::{BinaryHeap, HashMap, HashSet},
+    io::Write,
+};
 
 use crate::{save_svg, CWayId, Map, Node, Svg, SvgW, WayId};
 
@@ -24,6 +27,20 @@ impl std::ops::Deref for GNode {
     }
 }
 
+impl PartialEq for GNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for GNode {}
+
+impl std::hash::Hash for GNode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
 impl Map {
     pub fn shortest_path(&self, gps_start: &Node, street: &str) -> Vec<Node> {
         let starting_node = self.find_starting_node(gps_start);
@@ -40,7 +57,7 @@ impl Map {
             ],
         )
         .unwrap();
-        let path = self.greedy_path(&starting_node, &end_node);
+        let path = self.greedy_path2(&starting_node, &end_node);
         save_svg(
             "path.svg",
             self.bounding_box(),
@@ -90,6 +107,61 @@ impl Map {
             );
         }
         Vec::new() // no path found
+    }
+
+    fn greedy_path2(&self, start: &GNode, end: &GNode) -> Vec<Node> {
+        struct HeapEntry {
+            predecessor: Option<GNode>,
+            travel: [GNode; 2],
+            distance_to_end: f64,
+        }
+        impl PartialEq for HeapEntry {
+            fn eq(&self, other: &Self) -> bool {
+                self.distance_to_end == other.distance_to_end
+            }
+        }
+        impl Eq for HeapEntry {}
+        impl PartialOrd for HeapEntry {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                self.distance_to_end
+                    .partial_cmp(&other.distance_to_end)
+                    .map(std::cmp::Ordering::reverse)
+            }
+        }
+        impl Ord for HeapEntry {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                self.partial_cmp(other).unwrap()
+            }
+        }
+        let mut heap = BinaryHeap::new();
+        heap.push(HeapEntry {
+            predecessor: None,
+            travel: [*start, *start],
+            distance_to_end: start.squared_distance_between(end),
+        });
+        let mut seen_nodes = HashSet::new(); // TODO: replace by bitvec
+        let mut predecessors = HashMap::new(); // TODO: replace with vec and renumbering of nodes
+        while let Some(entry) = heap.pop() {
+            if seen_nodes.contains(&entry.travel[1].id) {
+                continue;
+            }
+            seen_nodes.insert(entry.travel[0].id);
+            seen_nodes.insert(entry.travel[1].id);
+            let current_node = entry.travel[1];
+            if let Some(predecessor) = entry.predecessor {
+                predecessors.insert(entry.travel[1], predecessor);
+            }
+            if current_node.is(end) {
+                return rebuild_path(&current_node, start, &predecessors);
+            }
+
+            heap.extend(self.neighbours(&current_node).map(|travel| HeapEntry {
+                predecessor: Some(current_node),
+                travel,
+                distance_to_end: travel[1].squared_distance_between(end),
+            }));
+        }
+        Vec::new() // no path
     }
 
     fn connected_component(&self, start: &GNode) -> Vec<Vec<Node>> {
@@ -196,4 +268,15 @@ impl Map {
                 }
             })
     }
+}
+
+fn rebuild_path(end: &GNode, start: &GNode, predecessors: &HashMap<GNode, GNode>) -> Vec<Node> {
+    //TODO: also add nodes inside ways
+    let mut path = vec![end.node];
+    let mut current_node = *end;
+    while current_node != *start {
+        current_node = predecessors[&current_node];
+        path.push(current_node.node);
+    }
+    path
 }
