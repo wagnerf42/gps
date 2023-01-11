@@ -109,19 +109,16 @@ impl Map {
             .write_all(&self.start_coordinates.1.to_le_bytes())
             .await?;
         writer.write_all(&self.side.to_le_bytes()).await?;
-        // now, all tiled ways
-        writer
-            .write_all(&(self.binary_ways.len() as u32).to_le_bytes())
-            .await?;
-        writer.write_all(&self.binary_ways).await?;
-        // now the tiles sizes
-        writer
-            .write_all(&self.tiles_sizes_prefix.len().to_le_bytes())
-            .await?;
+
+        // now the tiles sizes, encoded on 24 bytes
         for s in &self.tiles_sizes_prefix {
-            assert!(*s <= std::u32::MAX as usize); // for now
-            writer.write_all(&(*s as u32).to_le_bytes()).await?;
+            assert!(*s <= 1 << 24);
+            writer.write_all(&(*s as u32).to_le_bytes()[0..3]).await?;
         }
+
+        // now, all tiled ways ; size is last element of sizes_prefix
+        writer.write_all(&self.binary_ways).await?;
+
         Ok(())
     }
 
