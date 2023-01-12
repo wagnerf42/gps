@@ -20,6 +20,7 @@ const SIDE: f64 = 1. / 1000.; // excellent value
                               // and what's more we can use 1 byte for each coordinate inside the square
                               // for 1/2 meter precision
 
+#[allow(dead_code)]
 async fn load_data_set(
     filename: &str,
 ) -> std::io::Result<(
@@ -61,12 +62,12 @@ async fn request_data_set(
 }
 
 #[allow(dead_code)]
-async fn manual_data_set() -> std::io::Result<(
+fn manual_data_set() -> (
     Vec<Node>,
     HashMap<WayId, Vec<NodeId>>,
     HashMap<String, Vec<WayId>>,
     f64,
-)> {
+) {
     let renamed_nodes = vec![
         Node::new(3., 3.),
         Node::new(4., 3.),
@@ -79,7 +80,7 @@ async fn manual_data_set() -> std::io::Result<(
         .enumerate()
         .collect();
     let streets = std::iter::once(("Rue Lavoisier".to_owned(), vec![3])).collect();
-    Ok((renamed_nodes, ways, streets, 10.))
+    (renamed_nodes, ways, streets, 10.)
 }
 
 #[tokio::main]
@@ -99,10 +100,9 @@ async fn main() -> std::io::Result<()> {
     let (mut nodes, ways, mut streets, side) = load_data_set("large.set").await?;
     // let (mut nodes, ways, mut streets, side) = load_data_set("small.set").await?;
     // let (mut nodes, ways, mut streets, side) = load_data_set("heavy.set").await?;
+    // let (mut nodes, ways, mut streets, side) = manual_data_set();
     let mut ways = sanitize_ways(ways, &mut streets);
-    // save_svg("not_simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     simplify_ways(&mut nodes, &mut ways, &mut streets);
-    // save_svg("simpl_test.svg", &renamed_nodes, &ways, bbox, SIDE)?;
     eprintln!(
         "we have {} nodes and {} streets",
         nodes.len(),
@@ -132,7 +132,7 @@ async fn main() -> std::io::Result<()> {
         .sum::<usize>();
     eprintln!("we have {street_segments} street segments");
 
-    let map = Map::new(&nodes, &ways, streets, &tiles, SIDE);
+    let map = Map::new(&nodes, &ways, streets, &tiles, side);
     let (map_size, tiles_number, max_ways_per_tile) = map.stats();
     map.save("test.map").await?;
     eprintln!("map has size {map_size}, with {tiles_number} tiles and at most {max_ways_per_tile} ways per tile");

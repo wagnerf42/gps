@@ -4,12 +4,18 @@ use std::{
     io::Write,
 };
 
-use crate::{save_svg, CNodeId, CWayId, Map, Node, Svg, SvgW};
+use crate::{save_svg, CNodeId, CWayId, Map, Node, Svg, SvgW, TILE_BORDER_THICKNESS};
 
 #[derive(Debug, Clone, Copy)]
 struct GNode {
     id: CNodeId,
     node: Node,
+}
+
+impl std::fmt::Display for GNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.y)
+    }
 }
 
 impl<W: Write> Svg<W> for GNode {
@@ -46,7 +52,6 @@ impl Map {
         let starting_node = self.find_starting_node(gps_start);
         let end_node = self.find_ending_node(gps_start, street);
         let greedy_path_length = self.greedy_path(&starting_node, &end_node);
-        eprintln!("greedy path has length {greedy_path_length}");
         let path = self.low_level_a_star(&starting_node, &end_node, greedy_path_length);
         save_svg(
             "path.svg",
@@ -59,7 +64,6 @@ impl Map {
             ],
         )
         .unwrap();
-        eprintln!("shortest path took {:?}", start.elapsed());
         path
     }
 
@@ -133,7 +137,8 @@ impl Map {
                         distance: entry.distance + travel[0].distance_to(&travel[1]),
                     })
                     .filter(|entry| {
-                        entry.distance + entry.travel[1].distance_to(end) < greedy_path_length
+                        let d = entry.distance + entry.travel[1].distance_to(end);
+                        d <= greedy_path_length + TILE_BORDER_THICKNESS // TODO: should be max path length error
                     }),
             );
         }
@@ -269,7 +274,7 @@ impl Map {
     fn way(&self, way_id: CWayId) -> [GNode; 2] {
         let nodes_number = self.tile_nodes_number(way_id.tile_number);
         let binary_tile = self.tile_binary(way_id.tile_number);
-        let ways_binary = &binary_tile[(1 + 2 * nodes_number as usize)..];
+        let ways_binary = &binary_tile[(2 + 2 * nodes_number as usize)..];
         let n1 = ways_binary[2 * way_id.local_way_id as usize];
         let n2 = ways_binary[2 * way_id.local_way_id as usize + 1];
         let id1 = CNodeId {
@@ -315,6 +320,7 @@ fn rebuild_path_vec(end: &GNode, predecessors: &[(GNode, GNode)]) -> Vec<Node> {
         })
 }
 
+#[derive(Debug)]
 struct HeapEntry {
     predecessor: Option<GNode>,
     travel: [GNode; 2],

@@ -30,6 +30,8 @@ pub struct CNodeId {
     local_node_id: u8,
 }
 
+pub const TILE_BORDER_THICKNESS: f64 = 1. / 111_200.;
+
 pub fn rename_nodes(
     nodes: HashMap<NodeId, Node>,
     ways: &mut HashMap<WayId, Vec<NodeId>>,

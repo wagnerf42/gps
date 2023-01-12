@@ -1,5 +1,3 @@
-- changer le codage des tuiles:
- - vec de nodes + vec de couples de u8 indiquant les nodes
 
 - enlever les :
     <tag k="service" v="parking_aisle"/>
@@ -14,3 +12,4 @@
 - utiliser inline c pour accelerer l'affichage ?
 - que se passe t'il si l'affichage prend 1.5 secondes et le gps se rafraichit toutes les 1s
 - utiliser un cache de tuile ? (a priori non)
+- peut etre qu'il y a des aretes en double

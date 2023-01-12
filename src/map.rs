@@ -235,7 +235,7 @@ impl Map {
     fn decode_way(&self, way_id: CWayId) -> [Node; 2] {
         let nodes_number = self.tile_nodes_number(way_id.tile_number);
         let binary_tile = self.tile_binary(way_id.tile_number);
-        let ways_binary = &binary_tile[(1 + 2 * nodes_number as usize)..];
+        let ways_binary = &binary_tile[(2 + 2 * nodes_number as usize)..];
         let n1 = ways_binary[2 * way_id.local_way_id as usize];
         let n2 = ways_binary[2 * way_id.local_way_id as usize + 1];
         [

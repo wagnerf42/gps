@@ -1,3 +1,5 @@
+use crate::TILE_BORDER_THICKNESS;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Node {
     pub x: f64,
@@ -16,8 +18,6 @@ impl std::hash::Hash for Node {
         self.y.to_bits().hash(state);
     }
 }
-
-const TILE_BORDER_THICKNESS: f64 = 1. / 111_200.;
 
 impl Node {
     pub fn new(x: f64, y: f64) -> Self {
