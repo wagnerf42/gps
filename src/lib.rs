@@ -17,10 +17,19 @@ pub use svg::{save_svg, Svg, SvgW};
 pub type TileKey = (usize, usize);
 pub type WayId = usize;
 pub type NodeId = usize;
-pub type CWayId = (u16, u16); // tile number + index of way inside tile (absolute pos in binary encoding)
 
-// convert osm nodes ids to smaller integers (from 0 to nodes number)
-// and update ways accordingly
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct CWayId {
+    tile_number: u16,
+    local_way_id: u8,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct CNodeId {
+    tile_number: u16,
+    local_node_id: u8,
+}
+
 pub fn rename_nodes(
     nodes: HashMap<NodeId, Node>,
     ways: &mut HashMap<WayId, Vec<NodeId>>,
@@ -76,8 +85,8 @@ pub fn cut_way_segments_on_tiles(
             .chain(std::iter::once(n2))
             .collect::<Vec<_>>();
         new_nodes.sort_unstable_by(|na, nb| {
-            let da = na.squared_distance_between(&n1);
-            let db = nb.squared_distance_between(&n1);
+            let da = na.squared_distance_to(&n1);
+            let db = nb.squared_distance_to(&n1);
             da.partial_cmp(&db).unwrap()
         });
         for new_node in new_nodes.into_iter().dedup() {
@@ -199,59 +208,19 @@ pub fn sanitize_ways(
     new_ways
 }
 
-// cut ways such that each fits a single tile.
-pub fn cut_ways_on_tiles(
-    nodes: &[Node],
+// cut ways such that we only get segments.
+pub fn cut_ways_into_edges(
     ways: Vec<Vec<NodeId>>,
     streets: &mut HashMap<String, Vec<WayId>>,
-    side: f64,
-) -> (Vec<Vec<NodeId>>, HashMap<TileKey, Vec<WayId>>) {
+) -> Vec<[NodeId; 2]> {
     let mut new_ways = Vec::new();
     let mut ids_changes: HashMap<usize, Vec<usize>> = HashMap::new();
-    let mut tiles_ways: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
     for (old_way_id, way) in ways.into_iter().enumerate() {
-        assert!(way.len() > 1);
-        way.into_iter()
-            .map(|id| (id, &nodes[id]))
-            .multipeek()
-            .batching(|it| {
-                if let Some((first_node_id, first_node)) = it.next() {
-                    let mut smaller_way = vec![first_node_id];
-                    let mut current_tiles = first_node.tiles(side).collect::<HashSet<_>>();
-                    let mut tile_id = *current_tiles.iter().next().unwrap();
-                    while let Some((next_node_id, next_node)) = it.peek() {
-                        smaller_way.push(*next_node_id);
-                        current_tiles = current_tiles
-                            .intersection(&next_node.tiles(side).collect::<HashSet<_>>())
-                            .copied()
-                            .collect();
-                        tile_id = *current_tiles.iter().next().unwrap();
-                        if let Some((_, next_node)) = it.peek() {
-                            current_tiles = current_tiles
-                                .intersection(&next_node.tiles(side).collect::<HashSet<_>>())
-                                .copied()
-                                .collect();
-                            if current_tiles.is_empty() {
-                                return Some((tile_id, smaller_way));
-                            } else {
-                                it.next();
-                            }
-                        } else {
-                            it.next();
-                        }
-                    }
-                    Some((tile_id, smaller_way))
-                } else {
-                    None
-                }
-            })
-            .for_each(|(tile_id, smaller_way)| {
-                assert!(smaller_way.len() > 1);
-                let new_id = new_ways.len();
-                new_ways.push(smaller_way);
-                ids_changes.entry(old_way_id).or_default().push(new_id);
-                tiles_ways.entry(tile_id).or_default().push(new_id);
-            })
+        for (n1, n2) in way.into_iter().tuple_windows() {
+            let new_way_id = new_ways.len();
+            new_ways.push([n1, n2]);
+            ids_changes.entry(old_way_id).or_default().push(new_way_id);
+        }
     }
 
     // now update the streets
@@ -264,5 +233,24 @@ pub fn cut_ways_on_tiles(
         *street_ways = new_street_ways;
     }
 
-    (new_ways, tiles_ways)
+    new_ways
+}
+
+pub fn group_ways_in_tiles(
+    nodes: &[Node],
+    ways: &[[NodeId; 2]],
+    side: f64,
+) -> HashMap<TileKey, Vec<WayId>> {
+    let mut tiles: HashMap<TileKey, Vec<WayId>> = HashMap::new();
+    for (way_id, [n1, n2]) in ways.iter().enumerate() {
+        let tile_id = nodes[*n1]
+            .tiles(side)
+            .collect::<HashSet<_>>()
+            .intersection(&nodes[*n2].tiles(side).collect::<HashSet<_>>())
+            .next()
+            .copied()
+            .unwrap();
+        tiles.entry(tile_id).or_default().push(way_id);
+    }
+    tiles
 }

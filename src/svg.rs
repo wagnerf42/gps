@@ -13,7 +13,7 @@ pub trait Svg<W: Write> {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()>;
 }
 
-impl<W: Write> Svg<W> for Vec<Node> {
+impl<W: Write> Svg<W> for &[Node] {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
         self.iter().tuple_windows().try_for_each(|(n1, n2)| {
             writeln!(
@@ -66,7 +66,8 @@ impl<W: Write> Svg<W> for Map {
         )?;
         }
 
-        self.ways().try_for_each(|w| w.write_svg(writer, color))
+        self.ways()
+            .try_for_each(|w| w.as_slice().write_svg(writer, color))
     }
 }
 

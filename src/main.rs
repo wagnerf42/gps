@@ -1,9 +1,10 @@
 use gps::{
-    cut_segments_on_tiles, cut_ways_on_tiles, simplify_ways, Map, Node, NodeId, Svg, SvgW, WayId,
+    cut_segments_on_tiles, cut_ways_into_edges, group_ways_in_tiles, simplify_ways, Map, Node,
+    NodeId, SvgW, WayId,
 };
 use gps::{sanitize_ways, save_svg};
 use std::collections::HashMap;
-use std::io::Write;
+// use std::io::Write;
 use tokio::io::AsyncWriteExt;
 
 use gps::parse_osm_xml;
@@ -37,6 +38,7 @@ async fn load_data_set(
     Ok((renamed_nodes, ways, streets, SIDE))
 }
 
+#[allow(dead_code)]
 async fn request_data_set(
     xmin: f64,
     ymin: f64,
@@ -58,6 +60,7 @@ async fn request_data_set(
     Ok((renamed_nodes, ways, streets, SIDE))
 }
 
+#[allow(dead_code)]
 async fn manual_data_set() -> std::io::Result<(
     Vec<Node>,
     HashMap<WayId, Vec<NodeId>>,
@@ -112,13 +115,13 @@ async fn main() -> std::io::Result<()> {
         ways.iter().map(|w| w.len() - 1).sum::<usize>(),
         ways.len()
     );
-    let (ways, tiles) = cut_ways_on_tiles(&nodes, ways, &mut streets, SIDE);
+    let ways = cut_ways_into_edges(ways, &mut streets);
     eprintln!(
-        "after cutting ways we have {} segments and {} ways and {} tiles",
+        "after cutting ways we have {} segments and {} ways",
         ways.iter().map(|w| w.len() - 1).sum::<usize>(),
         ways.len(),
-        tiles.len()
     );
+    let tiles = group_ways_in_tiles(&nodes, &ways, side);
     let street_segments = streets
         .values()
         .flat_map(|street_ways| {

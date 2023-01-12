@@ -4,12 +4,11 @@ use std::{
     io::Write,
 };
 
-use crate::{save_svg, CWayId, Map, Node, Svg, SvgW, WayId};
+use crate::{save_svg, CNodeId, CWayId, Map, Node, Svg, SvgW};
 
 #[derive(Debug, Clone, Copy)]
 struct GNode {
-    id: usize,
-    way_id: usize,
+    id: CNodeId,
     node: Node,
 }
 
@@ -56,7 +55,7 @@ impl Map {
                 self as SvgW,
                 &starting_node as SvgW,
                 &end_node as SvgW,
-                &path as SvgW,
+                (&path.as_slice()) as SvgW,
             ],
         )
         .unwrap();
@@ -64,6 +63,7 @@ impl Map {
         path
     }
 
+    #[allow(dead_code)]
     fn a_star(&self, start: &GNode, end: &GNode, greedy_path_length: f64) -> Vec<Node> {
         let mut heap = BinaryHeap::new();
         heap.push(HeapEntry {
@@ -92,11 +92,10 @@ impl Map {
                     .map(|travel| HeapEntry {
                         predecessor: Some(current_node),
                         travel,
-                        distance: entry.distance + self.way_length(travel[1].way_id),
+                        distance: entry.distance + travel[0].distance_to(&travel[1]),
                     })
                     .filter(|entry| {
-                        entry.distance + entry.travel[1].squared_distance_between(end).sqrt()
-                            < greedy_path_length
+                        entry.distance + entry.travel[1].distance_to(end) < greedy_path_length
                     }),
             );
         }
@@ -131,11 +130,10 @@ impl Map {
                     .map(|travel| HeapEntry {
                         predecessor: Some(current_node),
                         travel,
-                        distance: entry.distance + self.way_length(travel[1].way_id),
+                        distance: entry.distance + travel[0].distance_to(&travel[1]),
                     })
                     .filter(|entry| {
-                        entry.distance + entry.travel[1].squared_distance_between(end).sqrt()
-                            < greedy_path_length
+                        entry.distance + entry.travel[1].distance_to(end) < greedy_path_length
                     }),
             );
         }
@@ -147,7 +145,7 @@ impl Map {
         heap.push(HeapEntry {
             predecessor: None,
             travel: [*start, *start],
-            distance: start.squared_distance_between(end),
+            distance: start.squared_distance_to(end),
         });
         let mut seen_nodes = HashSet::new(); // TODO: replace by bitvec
         let mut predecessors = HashMap::new(); // TODO: replace with vec and renumbering of nodes
@@ -169,12 +167,13 @@ impl Map {
             heap.extend(self.neighbours(&current_node).map(|travel| HeapEntry {
                 predecessor: Some(current_node),
                 travel,
-                distance: travel[1].squared_distance_between(end),
+                distance: travel[1].squared_distance_to(end),
             }));
         }
         0.
     }
 
+    #[allow(dead_code)]
     fn connected_component(&self, start: &GNode) -> Vec<Vec<Node>> {
         let mut stack = vec![[*start, *start]];
         let mut component = Vec::new();
@@ -201,46 +200,23 @@ impl Map {
             .get(street)
             .into_iter()
             .flatten()
-            .flat_map(|&way_id| {
-                let (way_offset, nodes) = self.way(way_id);
-                nodes
-                    .first()
-                    .map(|n| GNode {
-                        id: way_offset,
-                        way_id: way_offset,
-                        node: *n,
-                    })
-                    .into_iter()
-                    .chain(nodes.last().map(|n| GNode {
-                        id: way_offset + 1,
-                        way_id: way_offset,
-                        node: *n,
-                    }))
-            })
+            .flat_map(|&way_id| self.way(way_id))
             .min_by(|na, nb| {
-                na.squared_distance_between(gps_start)
-                    .partial_cmp(&nb.squared_distance_between(gps_start))
+                na.squared_distance_to(gps_start)
+                    .partial_cmp(&nb.squared_distance_to(gps_start))
                     .unwrap()
             })
             .unwrap()
     }
 
     fn tile_edges(&self, tile_x: usize, tile_y: usize) -> impl Iterator<Item = [GNode; 2]> + '_ {
-        self.tile_ways_ends(tile_x, tile_y)
-            .map(|(way_offset, nodes)| {
-                [
-                    GNode {
-                        id: way_offset,
-                        way_id: way_offset,
-                        node: nodes[0],
-                    },
-                    GNode {
-                        id: way_offset + 1,
-                        way_id: way_offset,
-                        node: nodes[1],
-                    },
-                ]
+        let tile_number = (tile_x + tile_y * self.grid_size.0) as u16;
+        (0..(self.tile_ways_number(tile_number))).map(move |local_way_id| {
+            self.way(CWayId {
+                tile_number,
+                local_way_id,
             })
+        })
     }
 
     fn find_starting_node(&self, gps_start: &Node) -> GNode {
@@ -252,8 +228,8 @@ impl Map {
         self.tile_edges(tile_x, tile_y)
             .flatten()
             .min_by(|na, nb| {
-                na.squared_distance_between(gps_start)
-                    .partial_cmp(&nb.squared_distance_between(gps_start))
+                na.squared_distance_to(gps_start)
+                    .partial_cmp(&nb.squared_distance_to(gps_start))
                     .unwrap()
             })
             .unwrap()
@@ -267,7 +243,7 @@ impl Map {
     // and not only e2.
     // that's why i cannot loop on the neighbours only, i also need the intermediate points.
     fn neighbours<'a>(&'a self, node: &'a GNode) -> impl Iterator<Item = [GNode; 2]> + 'a {
-        self.node_tiles(node)
+        self.node_tiles(node) // TODO: rewrite me now that we have node ids in the tile
             .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
             .filter_map(|nodes| {
                 if nodes[0].is(node) {
@@ -279,14 +255,42 @@ impl Map {
                 }
             })
     }
+
     fn path_length(&self, end: &GNode, predecessors: &HashMap<GNode, GNode>) -> f64 {
         std::iter::successors(Some(*end), |current_node| {
             predecessors.get(current_node).copied()
         })
-        .map(|node| node.way_id)
         .dedup()
-        .map(|way_id| self.way_length(way_id))
+        .tuple_windows()
+        .map(|(n1, n2)| n1.distance_to(&n2))
         .sum::<f64>()
+    }
+
+    fn way(&self, way_id: CWayId) -> [GNode; 2] {
+        let nodes_number = self.tile_nodes_number(way_id.tile_number);
+        let binary_tile = self.tile_binary(way_id.tile_number);
+        let ways_binary = &binary_tile[(1 + 2 * nodes_number as usize)..];
+        let n1 = ways_binary[2 * way_id.local_way_id as usize];
+        let n2 = ways_binary[2 * way_id.local_way_id as usize + 1];
+        let id1 = CNodeId {
+            tile_number: way_id.tile_number,
+            local_node_id: n1,
+        };
+
+        let id2 = CNodeId {
+            tile_number: way_id.tile_number,
+            local_node_id: n2,
+        };
+        [
+            GNode {
+                node: self.decode_node(id1),
+                id: id1,
+            },
+            GNode {
+                node: self.decode_node(id2),
+                id: id2,
+            },
+        ]
     }
 }
 

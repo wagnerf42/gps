@@ -26,8 +26,8 @@ fn hybrid_simplification(points: &[Node], epsilon: f64) -> Vec<Node> {
             .skip(1)
             .max_by(|(_, p1), (_, p2)| {
                 first
-                    .squared_distance_between(p1)
-                    .partial_cmp(&first.squared_distance_between(p2))
+                    .squared_distance_to(p1)
+                    .partial_cmp(&first.squared_distance_to(p2))
                     .unwrap()
             })
             .map(|(i, _)| i)

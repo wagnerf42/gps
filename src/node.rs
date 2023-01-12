@@ -23,15 +23,19 @@ impl Node {
     pub fn new(x: f64, y: f64) -> Self {
         Node { x, y }
     }
-    pub fn squared_distance_between(&self, other: &Node) -> f64 {
+    pub fn squared_distance_to(&self, other: &Node) -> f64 {
         let dx = other.x - self.x;
         let dy = other.y - self.y;
         dx * dx + dy * dy
     }
+
+    pub fn distance_to(&self, other: &Node) -> f64 {
+        self.squared_distance_to(other).sqrt()
+    }
     pub fn distance_to_segment(&self, v: &Node, w: &Node) -> f64 {
-        let l2 = v.squared_distance_between(w);
+        let l2 = v.squared_distance_to(w);
         if l2 == 0.0 {
-            return self.squared_distance_between(v).sqrt();
+            return self.squared_distance_to(v).sqrt();
         }
         // Consider the line extending the segment, parameterized as v + t (w - v).
         // We find projection of point p onto the line.
@@ -49,7 +53,7 @@ impl Node {
             y: v.y + y1 * t,
         };
 
-        proj.squared_distance_between(self).sqrt()
+        proj.distance_to(self)
     }
 
     // Loop on all tiles the node belongs.
@@ -113,7 +117,6 @@ impl Node {
     }
 
     pub(crate) fn is(&self, other: &Node) -> bool {
-        let d = self.squared_distance_between(other).sqrt();
-        d <= TILE_BORDER_THICKNESS
+        self.distance_to(other) <= TILE_BORDER_THICKNESS
     }
 }

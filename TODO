@@ -1,8 +1,16 @@
+- changer le codage des tuiles:
+ - vec de nodes + vec de couples de u8 indiquant les nodes
+
 - enlever les :
     <tag k="service" v="parking_aisle"/>
     <tag k="highway" v="footway"/> ?
     <tag k="surface" v="paving_stones"/> ?
     <tag k="highway" v="service"/> ?
     <tag k="highway" v="steps"/> ?
+
 - que faire avec les "area" ??
-- utiliser des UInt24Array pour le prefixe
+- si j'enleve les area la forme du graphe change bizarrement dans la heavy tile
+- verifier quelles sont les composantes connexes
+- utiliser inline c pour accelerer l'affichage ?
+- que se passe t'il si l'affichage prend 1.5 secondes et le gps se rafraichit toutes les 1s
+- utiliser un cache de tuile ? (a priori non)
