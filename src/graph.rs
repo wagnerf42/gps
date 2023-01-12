@@ -48,7 +48,6 @@ impl std::hash::Hash for GNode {
 
 impl Map {
     pub fn shortest_path(&self, gps_start: &Node, street: &str) -> Vec<Node> {
-        let start = std::time::Instant::now();
         let starting_node = self.find_starting_node(gps_start);
         let end_node = self.find_ending_node(gps_start, street);
         let greedy_path_length = self.greedy_path(&starting_node, &end_node);
@@ -272,19 +271,14 @@ impl Map {
     }
 
     fn way(&self, way_id: CWayId) -> [GNode; 2] {
-        let nodes_number = self.tile_nodes_number(way_id.tile_number);
-        let binary_tile = self.tile_binary(way_id.tile_number);
-        let ways_binary = &binary_tile[(2 + 2 * nodes_number as usize)..];
-        let n1 = ways_binary[2 * way_id.local_way_id as usize];
-        let n2 = ways_binary[2 * way_id.local_way_id as usize + 1];
         let id1 = CNodeId {
             tile_number: way_id.tile_number,
-            local_node_id: n1,
+            local_node_id: 2 * way_id.local_way_id,
         };
 
         let id2 = CNodeId {
             tile_number: way_id.tile_number,
-            local_node_id: n2,
+            local_node_id: 2 * way_id.local_way_id + 1,
         };
         [
             GNode {

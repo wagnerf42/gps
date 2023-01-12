@@ -46,7 +46,7 @@ impl Map {
         for y in ymin..=ymax {
             for x in xmin..=xmax {
                 if let Some(tile_ways) = tiles.get(&(x, y)) {
-                    let (nodes, ways) = compress_tile(
+                    let ways = compress_tile(
                         nodes,
                         ways,
                         x,
@@ -56,10 +56,7 @@ impl Map {
                         &mut ids_changes,
                         tile_id,
                     );
-                    binary_ways.push(nodes.len() as u8);
-                    binary_ways.extend(nodes.iter().flatten().copied());
-                    binary_ways.push(ways.len() as u8);
-                    binary_ways.extend(ways.iter().flatten().copied());
+                    binary_ways.extend(ways.iter().flatten().flatten().copied());
                 }
                 tiles_sizes_prefix.push(binary_ways.len());
                 tile_id += 1;
@@ -191,22 +188,9 @@ impl Map {
         &self.binary_ways[binary_start..binary_end]
     }
 
-    // get number of nodes inside given tile
-    pub fn tile_nodes_number(&self, tile_number: u16) -> u8 {
-        self.tile_binary(tile_number)
-            .first()
-            .copied()
-            .unwrap_or_default()
-    }
-
     // get number of ways inside given tile
     pub fn tile_ways_number(&self, tile_number: u16) -> u8 {
-        let binary_tile = self.tile_binary(tile_number);
-        binary_tile
-            .first()
-            .and_then(|&nodes_number| binary_tile.get(1 + 2 * nodes_number as usize))
-            .copied()
-            .unwrap_or_default()
+        (self.tile_binary(tile_number).len() / 4) as u8
     }
 
     // loop on all ways inside given tile
@@ -224,8 +208,8 @@ impl Map {
         let tile_x = node_id.tile_number as usize % self.grid_size.0;
         let tile_y = node_id.tile_number as usize / self.grid_size.0;
         let binary_tile = self.tile_binary(node_id.tile_number);
-        let cx = binary_tile[2 * node_id.local_node_id as usize + 1];
-        let cy = binary_tile[2 * node_id.local_node_id as usize + 2];
+        let cx = binary_tile[2 * node_id.local_node_id as usize];
+        let cy = binary_tile[2 * node_id.local_node_id as usize + 1];
 
         let x = self.start_coordinates.0 + tile_x as f64 * self.side + cx as f64 / 255. * self.side;
         let y = self.start_coordinates.1 + tile_y as f64 * self.side + cy as f64 / 255. * self.side;
@@ -233,19 +217,14 @@ impl Map {
     }
 
     fn decode_way(&self, way_id: CWayId) -> [Node; 2] {
-        let nodes_number = self.tile_nodes_number(way_id.tile_number);
-        let binary_tile = self.tile_binary(way_id.tile_number);
-        let ways_binary = &binary_tile[(2 + 2 * nodes_number as usize)..];
-        let n1 = ways_binary[2 * way_id.local_way_id as usize];
-        let n2 = ways_binary[2 * way_id.local_way_id as usize + 1];
         [
             self.decode_node(CNodeId {
                 tile_number: way_id.tile_number,
-                local_node_id: n1,
+                local_node_id: 2 * way_id.local_way_id,
             }),
             self.decode_node(CNodeId {
                 tile_number: way_id.tile_number,
-                local_node_id: n2,
+                local_node_id: 2 * way_id.local_way_id + 1,
             }),
         ]
     }
@@ -267,22 +246,14 @@ fn compress_tile(
     side: f64,
     ids_changes: &mut HashMap<WayId, CWayId>,
     tile_id: usize,
-) -> (Vec<[u8; 2]>, Vec<[u8; 2]>) {
-    let mut compressed_nodes = Vec::new();
-    let mut seen_compressed_nodes: HashMap<[u8; 2], u8> = HashMap::new();
+) -> Vec<[[u8; 2]; 2]> {
     let mut compressed_ways = Vec::new();
 
     for (local_way_id, global_way_id) in tile_ways.iter().enumerate() {
         let mut new_way = Vec::new();
         for node in ways[*global_way_id].iter().map(|&i| &nodes[i]) {
             let new_node = node.encode(tile_x, tile_y, side);
-            let new_node_id = *seen_compressed_nodes.entry(new_node).or_insert_with(|| {
-                let new_node_id = compressed_nodes.len();
-                assert!(new_node_id <= 255);
-                compressed_nodes.push(new_node);
-                new_node_id as u8
-            });
-            new_way.push(new_node_id);
+            new_way.push(new_node);
         }
         ids_changes.insert(
             *global_way_id,
@@ -294,5 +265,5 @@ fn compress_tile(
         compressed_ways.push([new_way[0], new_way[1]]);
     }
 
-    (compressed_nodes, compressed_ways)
+    compressed_ways
 }
