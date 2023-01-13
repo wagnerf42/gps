@@ -151,21 +151,21 @@ impl Map {
             travel: [*start, *start],
             distance: start.squared_distance_to(end),
         });
-        let mut seen_nodes = HashSet::new(); // TODO: replace by bitvec
-        let mut predecessors = HashMap::new(); // TODO: replace with vec and renumbering of nodes
+        let mut seen_nodes = HashSet::new();
+        let mut predecessors = Vec::new();
         while let Some(entry) = heap.pop() {
             if seen_nodes.contains(&entry.travel[1].id) {
                 continue;
             }
             seen_nodes.insert(entry.travel[0].id);
             seen_nodes.insert(entry.travel[1].id);
+
             let current_node = entry.travel[1];
             if let Some(predecessor) = entry.predecessor {
-                predecessors.insert(entry.travel[1], predecessor);
+                predecessors.push((entry.travel[1], predecessor));
             }
             if current_node.is(end) {
-                return self.path_length(&current_node, &predecessors);
-                // return rebuild_path(&current_node, start, &predecessors);
+                return path_length_vec(&current_node, &predecessors);
             }
 
             heap.extend(self.neighbours(&current_node).map(|travel| HeapEntry {
@@ -260,16 +260,6 @@ impl Map {
             })
     }
 
-    fn path_length(&self, end: &GNode, predecessors: &HashMap<GNode, GNode>) -> f64 {
-        std::iter::successors(Some(*end), |current_node| {
-            predecessors.get(current_node).copied()
-        })
-        .dedup()
-        .tuple_windows()
-        .map(|(n1, n2)| n1.distance_to(&n2))
-        .sum::<f64>()
-    }
-
     fn way(&self, way_id: CWayId) -> [GNode; 2] {
         let id1 = CNodeId {
             tile_number: way_id.tile_number,
@@ -293,6 +283,27 @@ impl Map {
     }
 }
 
+fn path_length_vec(end: &GNode, predecessors: &[(GNode, GNode)]) -> f64 {
+    std::iter::once(end)
+        .chain(
+            predecessors
+                .iter()
+                .rev()
+                .scan(end, |current_node, (na, prec_na)| {
+                    if na.is(current_node) {
+                        *current_node = &prec_na;
+                        Some(Some(prec_na))
+                    } else {
+                        Some(None)
+                    }
+                })
+                .filter_map(|n| n),
+        )
+        .tuple_windows()
+        .map(|(n1, n2)| n1.distance_to(&n2))
+        .sum::<f64>()
+}
+
 fn rebuild_path(end: &GNode, predecessors: &HashMap<GNode, GNode>) -> Vec<Node> {
     std::iter::successors(Some(*end), |current_node| {
         predecessors.get(current_node).copied()
@@ -307,7 +318,7 @@ fn rebuild_path_vec(end: &GNode, predecessors: &[(GNode, GNode)]) -> Vec<Node> {
         .rev()
         .fold(vec![end.node], |mut path, (na, prec_na)| {
             let current_node = path.last().unwrap();
-            if na.node.is(current_node) {
+            if na.is(current_node) {
                 path.push(prec_na.node)
             }
             path
