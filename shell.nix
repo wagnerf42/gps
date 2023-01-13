@@ -10,6 +10,9 @@ in pkgs.mkShell {
     openssl
     nodePackages.eslint
     nodePackages.prettier
+    nodePackages.typescript-language-server
+    nodejs
+      nodePackages.typescript
     # flow
 
     (with fenix;

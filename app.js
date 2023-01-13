@@ -80,7 +80,7 @@ class Map {
     let tile_num = tile_x + tile_y * this.grid_size[0];
 
     let color_index = tile_num % 6;
-    let colors = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff'];
+    let colors = ["#f00", "#0f0", "#00f", "#ff0", "#f0f", "#0ff"];
     g.setColor(colors[color_index]);
 
     let line_start_offset = 0;
@@ -95,8 +95,6 @@ class Map {
     }
     let upper_limit = this.tiles_sizes_prefix[tile_num] - line_start_offset;
     while (offset < upper_limit) {
-      let way_length = this.binary_lines[tile_y][offset];
-      offset += 1;
       let x = (tile_x + this.binary_lines[tile_y][offset] / 255) * this.side;
       let y =
         (tile_y + this.binary_lines[tile_y][offset + 1] / 255) * this.side;
@@ -107,21 +105,16 @@ class Map {
       let final_x = center_x - Math.round(rotated_x);
       let final_y = center_y + Math.round(rotated_y);
       offset += 2;
-      for (let i = 0; i < way_length - 1; i++) {
-        let x = (tile_x + this.binary_lines[tile_y][offset] / 255) * this.side;
-        let y =
-          (tile_y + this.binary_lines[tile_y][offset + 1] / 255) * this.side;
-        let scaled_x = (x - current_x) * scale_factor;
-        let scaled_y = (y - current_y) * scale_factor;
-        let rotated_x = scaled_x * cos_direction - scaled_y * sin_direction;
-        let rotated_y = scaled_x * sin_direction + scaled_y * cos_direction;
-        let new_final_x = center_x - Math.round(rotated_x);
-        let new_final_y = center_y + Math.round(rotated_y);
-        offset += 2;
-        g.drawLine(final_x, final_y, new_final_x, new_final_y);
-        final_x = new_final_x;
-        final_y = new_final_y;
-      }
+      x = (tile_x + this.binary_lines[tile_y][offset] / 255) * this.side;
+      y = (tile_y + this.binary_lines[tile_y][offset + 1] / 255) * this.side;
+      scaled_x = (x - current_x) * scale_factor;
+      scaled_y = (y - current_y) * scale_factor;
+      rotated_x = scaled_x * cos_direction - scaled_y * sin_direction;
+      rotated_y = scaled_x * sin_direction + scaled_y * cos_direction;
+      let new_final_x = center_x - Math.round(rotated_x);
+      let new_final_y = center_y + Math.round(rotated_y);
+      offset += 2;
+      g.drawLine(final_x, final_y, new_final_x, new_final_y);
     }
   }
 }
