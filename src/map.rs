@@ -119,6 +119,14 @@ impl Map {
         // now, all tiled ways ; size is last element of sizes_prefix
         writer.write_all(&self.binary_ways).await?;
 
+        // finally, write all streets data
+        let encoded = crate::streets::encode_streets(&self.streets);
+        let streets_back = crate::streets::decode_streets(&encoded);
+        self.streets.iter().for_each(|(name, ways)| {
+            let restored_ways = streets_back.get(name).unwrap();
+            ways.iter().zip(restored_ways).all(|(w1, w2)| w1 == w2);
+        });
+
         Ok(())
     }
 

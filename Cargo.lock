@@ -449,6 +449,7 @@ name = "gps"
 version = "0.1.0"
 dependencies = [
  "gpx",
+ "heatshrink",
  "itertools",
  "lazy_static",
  "osmio",
@@ -515,6 +516,12 @@ checksum = "7249a3129cbc1ffccd74857f81464a323a152173cdb134e0fd81bc803b29facf"
 dependencies = [
  "hashbrown 0.11.2",
 ]
+
+[[package]]
+name = "heatshrink"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efb0a929f7a00a443ade1bb4532758a7a377bfcf9124faa7e77e907a9a2e342b"
 
 [[package]]
 name = "hermit-abi"

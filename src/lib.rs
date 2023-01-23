@@ -13,6 +13,7 @@ pub use map::Map;
 mod graph;
 mod svg;
 pub use svg::{save_svg, Svg, SvgW};
+mod streets;
 
 pub type TileKey = (usize, usize);
 pub type WayId = usize;
@@ -20,8 +21,8 @@ pub type NodeId = usize;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct CWayId {
-    tile_number: u16,
-    local_way_id: u8,
+    pub(crate) tile_number: u16,
+    pub(crate) local_way_id: u8,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
