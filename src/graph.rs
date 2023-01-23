@@ -151,14 +151,16 @@ impl Map {
             travel: [*start, *start],
             distance: start.squared_distance_to(end),
         });
-        let mut seen_nodes = HashSet::new();
+        let mut seen_nodes = vec![0u8; 1 + self.binary_ways.len() / 16];
         let mut predecessors = Vec::new();
         while let Some(entry) = heap.pop() {
-            if seen_nodes.contains(&entry.travel[1].id) {
+            let n1_offset_id = self.node_offset_id(&entry.travel[1].id);
+            if (seen_nodes[n1_offset_id / 8] & (1u8 << (n1_offset_id % 8))) != 0 {
                 continue;
             }
-            seen_nodes.insert(entry.travel[0].id);
-            seen_nodes.insert(entry.travel[1].id);
+            let n0_offset_id = self.node_offset_id(&entry.travel[0].id);
+            seen_nodes[n0_offset_id / 8] |= 1u8 << (n0_offset_id % 8);
+            seen_nodes[n1_offset_id / 8] |= 1u8 << (n1_offset_id % 8);
 
             let current_node = entry.travel[1];
             if let Some(predecessor) = entry.predecessor {

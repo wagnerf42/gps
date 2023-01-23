@@ -235,6 +235,17 @@ impl Map {
         let ymax = ymin + self.grid_size.1 as f64 * self.side;
         (xmin, ymin, xmax, ymax)
     }
+
+    pub(crate) fn node_offset_id(&self, id: &CNodeId) -> usize {
+        let tile_offset = id
+            .tile_number
+            .checked_sub(1)
+            .map(|i| self.tiles_sizes_prefix[i as usize])
+            .unwrap_or_default();
+        let offset = tile_offset + 2 * id.local_node_id as usize;
+        assert!(offset % 2 == 0);
+        offset / 2
+    }
 }
 
 fn compress_tile(
