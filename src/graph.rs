@@ -113,14 +113,17 @@ impl Map {
             distance: 0.,
         });
 
-        let mut seen_nodes = HashSet::new(); // TODO: replace by bitvec
+        let mut seen_nodes = vec![0u8; 1 + self.binary_ways.len() / 16];
         let mut predecessors = Vec::new();
         while let Some(entry) = heap.pop() {
-            if seen_nodes.contains(&entry.travel[1].id) {
+            let n1_offset_id = self.node_offset_id(&entry.travel[1].id);
+            if (seen_nodes[n1_offset_id / 8] & (1u8 << (n1_offset_id % 8))) != 0 {
                 continue;
             }
-            seen_nodes.insert(entry.travel[0].id);
-            seen_nodes.insert(entry.travel[1].id);
+            let n0_offset_id = self.node_offset_id(&entry.travel[0].id);
+            seen_nodes[n0_offset_id / 8] |= 1u8 << (n0_offset_id % 8);
+            seen_nodes[n1_offset_id / 8] |= 1u8 << (n1_offset_id % 8);
+
             let current_node = entry.travel[1];
             if let Some(predecessor) = entry.predecessor {
                 predecessors.push((entry.travel[1], predecessor));
@@ -293,16 +296,16 @@ fn path_length_vec(end: &GNode, predecessors: &[(GNode, GNode)]) -> f64 {
                 .rev()
                 .scan(end, |current_node, (na, prec_na)| {
                     if na.is(current_node) {
-                        *current_node = &prec_na;
+                        *current_node = prec_na;
                         Some(Some(prec_na))
                     } else {
                         Some(None)
                     }
                 })
-                .filter_map(|n| n),
+                .flatten(),
         )
         .tuple_windows()
-        .map(|(n1, n2)| n1.distance_to(&n2))
+        .map(|(n1, n2)| n1.distance_to(n2))
         .sum::<f64>()
 }
 
