@@ -39,8 +39,34 @@ class Map {
       binary_lines.push(array);
     }
     this.binary_lines = binary_lines;
+    offset += this.tiles_sizes_prefix[this.tiles_sizes_prefix.length -1];
+    
+    // now do streets data header
+    let streets_header = E.toArrayBuffer(s.read(filename, offset, 8));
+    let streets_header_offset = 0;
+    let full_streets_size = Uint32Array(streets_header, streets_header_offset, 1)[0];
+    streets_header_offset += 4;
+    let blocks_number = Uint16Array(streets_header, streets_header_offset, 1)[0];
+    streets_header_offset += 2;
+    let labels_string_size = Uint16Array(streets_header, streets_header_offset, 1)[0];
+    streets_header_offset += 2;
+    offset += streets_header_offset;
+    
+    // continue with main streets labels
+    this.labels = s.read(filename, offset, labels_string_size);
+    offset += labels_string_size;
+    
+    // continue with blocks start offsets
+    this.blocks_offsets = Uint32Array(E.toArrayBuffer(s.read(filename, offset, blocks_number *4)));
+    offset += blocks_number * 4;
+    
+    // continue with compressed street blocks
+    let encoded_blocks_size = full_streets_size - 4 - 2 - 2 - labels_string_size - blocks_number * 4; 
+    this.compressed_streets = Uint8Array(E.toArrayBuffer(s.read(filename, offset, encoded_blocks_size)));
+    offset += encoded_blocks_size;
   }
   display(current_x, current_y, cos_direction, sin_direction, scale_factor) {
+    console.log("we are at", current_x, current_y);
     g.clear();
     let local_x = current_x - this.start_coordinates[0];
     let local_y = current_y - this.start_coordinates[1];
@@ -120,5 +146,13 @@ class Map {
 }
 
 let map = new Map("test.map");
-map.display(5.79, 45.22, 1, 0, 60000);
+let x = 5.79;
+let y = 45.22;
+  map.display(x, y, 1, 0, 60000);
+// setInterval(function() {
+//   x+=1/10000;
+//   y+=1/10000;
+//   map.display(x, y, 1, 0, 60000);
+  
+// }, 1000);
 console.log("DONE");
