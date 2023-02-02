@@ -4,6 +4,14 @@ use std::collections::HashMap;
 
 use crate::CWayId;
 
+use unicode_categories::UnicodeCategories;
+use unicode_normalization::UnicodeNormalization;
+
+fn remove_accents(s: &str) -> String {
+    //TODO: also remove front numbers
+    s.nfd().filter(|&c| !c.is_mark_nonspacing()).collect()
+}
+
 pub(crate) fn encode_streets(streets: &HashMap<String, Vec<CWayId>>) -> Vec<u8> {
     // sort by alphabetical order
     let mut sorted_streets = streets.iter().collect::<Vec<_>>();
@@ -16,12 +24,12 @@ pub(crate) fn encode_streets(streets: &HashMap<String, Vec<CWayId>>) -> Vec<u8> 
     for streets_chunk in sorted_streets.chunks(block_size) {
         let mut names = String::new();
         let mut ways = Vec::new();
-        let mut ways_starts = Vec::new();
-        blocks_labels.push_str(streets_chunk[0].0);
+        // let mut ways_starts = Vec::new();
+        blocks_labels.push_str(&remove_accents(streets_chunk[0].0));
         blocks_labels.push('\n');
         for (street_name, street_ways) in streets_chunk {
-            ways_starts.push(ways.len());
-            names.push_str(street_name);
+            // ways_starts.push(ways.len());
+            names.push_str(&remove_accents(street_name));
             names.push('\n');
             ways.extend((street_ways.len() as u16).to_le_bytes());
             for way in *street_ways {

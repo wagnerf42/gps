@@ -1,3 +1,9 @@
+class CWayId {
+  constructor(tile_id, local_way_id) {
+    this.tile_id = tile_id;
+    this.local_way_id = local_way_id;
+  }
+}
 class Map {
   constructor(filename) {
     console.log("starting", process.memory());
@@ -53,7 +59,9 @@ class Map {
     offset += streets_header_offset;
     
     // continue with main streets labels
-    this.labels = s.read(filename, offset, labels_string_size);
+    main_streets_labels = s.read(filename, offset, labels_string_size);
+    // this.main_streets_labels = main_streets_labels.split(/\r?\n/);
+    this.main_streets_labels = main_streets_labels.split(/\n/);
     offset += labels_string_size;
     
     // continue with blocks start offsets
@@ -143,12 +151,76 @@ class Map {
       g.drawLine(final_x, final_y, new_final_x, new_final_y);
     }
   }
+  select_street() {
+    function show_street_submenu(k) {
+      map.select_street_block(k);
+    }
+    let main_menu = {};
+    for(let i=0; i < this.main_streets_labels.length -1; i++) { // TODO: virer lignes vides dans rust
+      let j = new Number(i);
+      let label_copy = this.main_streets_labels[i].split('').join(''); // without this it does not work
+      main_menu[label_copy] = function() {
+        E.showMenu();
+        show_street_submenu(j);
+      };
+    }
+    E.showMenu(main_menu);
+  }
+  select_street_block(block_number) {
+    
+    let start = this.blocks_offsets[block_number];
+    let end = this.blocks_offsets[block_number+1]; // TODO: fixme
+    let compressed_block = this.compressed_streets.slice(start, end);
+    let uncompressed_block = require('heatshrink').decompress(compressed_block);
+    let ways_size = Uint16Array(uncompressed_block)[0];
+    let raw_block = Uint8Array(uncompressed_block);
+    let raw_ways_labels = raw_block.slice(2+ways_size, uncompressed_block.length);
+    let raw_ways = raw_block.slice(2, 2+ways_size);
+    let ways_labels = '';
+    for(let i=0 ; i < raw_ways_labels.length ; i++) {
+      ways_labels += String.fromCharCode(raw_ways_labels[i]);
+    }
+    labels = ways_labels.split(/\n/);
+    
+    let menu = {};
+    for(let i=0; i < labels.length; i++) {
+      let j = new Number(i);
+      let label_copy = labels[i].split('').join(''); // without this it does not work
+      menu[label_copy] = function() {
+        let offset = 0;
+        let way_length;
+        for (let i=0; i<j; i++) {
+          way_length = raw_ways[offset] + (raw_ways[offset+1] << 8);
+          offset += 2 + 3 * way_length;
+        }
+        way_length = raw_ways[offset] + (raw_ways[offset+1] << 8);
+        let street = [];
+        offset += 2; // skip length
+        for (let i=0; i<way_length; i++) {
+          let tile_id = raw_ways[offset] + (raw_ways[offset+1] << 8);
+          offset += 2;
+          let local_way_id = raw_ways[offset];
+          offset += 1;
+          street.push(new CWayId(tile_id, local_way_id));
+        }
+        E.showMenu();
+        map.go_to(street);
+      };
+    }
+    E.showMenu(menu);
+  }
+  go_to(street) {
+    console.log("going to", street);
+  }
 }
 
 let map = new Map("test.map");
 let x = 5.79;
 let y = 45.22;
-  map.display(x, y, 1, 0, 60000);
+map.select_street();
+
+
+  // map.display(x, y, 1, 0, 60000);
 // setInterval(function() {
 //   x+=1/10000;
 //   y+=1/10000;
