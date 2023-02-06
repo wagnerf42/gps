@@ -1,6 +1,75 @@
+const TILE_BORDER_THICKNESS = 1.0 / 111200.0;
+
+class Point {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+  squared_distance_to(other) {
+    let xdiff = this.x - other.x;
+    let ydiff = this.y - other.y;
+    return xdiff * xdiff + ydiff * ydiff;
+  }
+  // return all tiles we belong to (in absolute coordinates)
+  tiles(side) {
+    let x = Math.round(this.x * 255 / side);
+    let y = Math.round(this.y * 255 / side);
+    let x_key = x / 255;
+    let y_key = y / 255;
+    let right_tile_border  = (x_key + 1) * side;
+    let at_right = (right_tile_border - this.x) < TILE_BORDER_THICKNESS;
+    let left_tile_border = x_key * side;
+    let at_left = (this.x - left_tile_border) < TILE_BORDER_THICKNESS;
+    let top_tile_border = (y_key + 1) * side;
+    let at_top = (top_tile_border - this.y) < TILE_BORDER_THICKNESS;
+    let bottom_tile_border = y_key * side;
+    let at_bottom = (this.y - bottom_tile_border) < TILE_BORDER_THICKNESS;
+    let tiles = [[x_key, y_key]];
+    if (at_left) {
+      tiles.push([x_key-1, y_key]);
+    }
+    if (at_top && at_left) {
+      tiles.push([x_key-1, y_key+1]);
+    }
+    if (at_top) {
+      tiles.push([x_key, y_key+1]);
+    }
+    if (at_top && at_right) {
+      tiles.push([x_key+1, y_key+1]);
+    }
+    if (at_right) {
+      tiles.push([x_key+1, y_key]);
+    }
+    if (at_right && at_bottom) {
+      tiles.push([x_key+1, y_key-1]);
+    }
+    if (at_bottom) {
+      tiles.push([x_key, y_key-1]);
+    }
+    if (at_bottom && at_left) {
+      tiles.push([x_key-1, y_key-1]);
+    }
+    return tiles;
+  }
+}
+
+class CNodeId {
+  constructor(tile_number, local_node_id) {
+    this.tile_number = tile_number;
+    this.local_node_id = local_node_id;
+  }
+}
+
+class GNode {
+  constructor(id, node) {
+    this.id = id;
+    this.node = node;
+  }
+}
+
 class CWayId {
-  constructor(tile_id, local_way_id) {
-    this.tile_id = tile_id;
+  constructor(tile_number, local_way_id) {
+    this.tile_number = tile_number;
     this.local_way_id = local_way_id;
   }
 }
@@ -212,15 +281,107 @@ class Map {
   go_to(street) {
     console.log("going to", street);
   }
+  way(way_id) {
+    let id1 = new CNodeId(way_id.tile_number, 2*way_id.local_way_id);
+    let id2 = new CNodeId(way_id.tile_number, 2*way_id.local_way_id+1);
+    return [
+      new GNode(id1, this.decode_node(id1)),
+      new GNode(id2, this.decode_node(id2))
+    ];
+  }
+  decode_node(node_id) {
+    let tile_x = node_id.tile_number % this.grid_size[0];
+    let tile_y = Math.floor(node_id.tile_number / this.grid_size[0]);
+    let tile_start = 0;
+    if (node_id.tile_number > 0) {
+      tile_start = this.tiles_sizes_prefix[node_id.tile_number - 1];
+    }
+    let first_tile_in_line = tile_y * this.grid_size[0];
+    let line_start = 0;
+    if (first_tile_in_line > 0) {
+      line_start = this.tiles_sizes_prefix[first_tile_in_line-1];
+    }
+    let binary_start = tile_start - line_start;
+    
+    let cx = this.binary_lines[tile_y][binary_start + 2 * node_id.local_node_id];
+    let cy = this.binary_lines[tile_y][binary_start + 2 * node_id.local_node_id+1];
+    let x = this.start_coordinates[0] + tile_x * this.side + ((cx*this.side) / 255);
+    let y = this.start_coordinates[1] + tile_y * this.side + ((cy*this.side) / 255);
+    return new Point(x, y);
+  }
+  // return all tiles (local coordinates) this point belongs to.
+  node_tiles(point) {
+    let first_tile_x = this.first_tile[0];
+    let first_tile_y = this.first_tile[1];
+    return point.tiles(this.side).map(function(t) {return [t[0] - first_tile_x, t[1] - first_tile_y]});
+  }
+  find_starting_node(gps_start) {
+    let tiles_containing_start = this.node_tiles(gps_start);
+    if (tiles_containing_start.length == 0) {
+      return null;
+    }
+    let starting_tile = tiles_containing_start[0]; // TODO: lots of fixme
+    let edges = this.tile_edges(starting_tile[0], starting_tile[1]);
+    let nearest_point = null;
+    let nearest_distance = Infinity;
+    for(let i=0; i < edges.length; i++) {
+      for(let j=0; j < 2; j++) {
+        let p = edges[i][j].node;
+        let d = p.squared_distance_to(gps_start);
+        if (d < nearest_distance) {
+          nearest_distance = d;
+          nearest_point = p;
+        }
+      }
+    }
+    return nearest_point;
+  }
+  // return number of ways inside given tile
+  tile_ways_number(tile_number) {
+    let tile_start = 0;
+    if (tile_number > 0) {
+      tile_start = this.tiles_sizes_prefix[tile_number-1];
+    }
+    let tile_end = this.tiles_sizes_prefix[tile_number];
+    let tile_binary_size = tile_end - tile_start;
+    return tile_binary_size / 4;
+  }
+  // return all edges in given tile
+  tile_edges(tile_x, tile_y) {
+    let tile_number = (tile_x + tile_y * this.grid_size[0]);
+    let edges = [];
+    for(let i=0; i < this.tile_ways_number(tile_number); i++) {
+      let way = this.way(new CWayId(tile_number, i));
+      edges.push(way);
+    }
+    return edges;
+  }
 }
 
 let map = new Map("test.map");
 let x = 5.79;
 let y = 45.22;
-map.select_street();
+// map.select_street();
 
 
-  // map.display(x, y, 1, 0, 60000);
+map.display(x, y, 1, 0, 60000);
+let starting_point = map.find_starting_node(new Point(x, y));
+
+
+let cos_direction = 1;
+let sin_direction = 0;
+let scale_factor = 60000;
+let center_x = g.getWidth() / 2;
+let center_y = g.getHeight() / 2;
+let scaled_x = (starting_point.x - x) * scale_factor;
+let scaled_y = (starting_point.y - y) * scale_factor;
+let rotated_x = scaled_x * cos_direction - scaled_y * sin_direction;
+let rotated_y = scaled_x * sin_direction + scaled_y * cos_direction;
+let final_x = center_x - Math.round(rotated_x);
+let final_y = center_y + Math.round(rotated_y);
+g.setColor(1,0,0).fillCircle(final_x, final_y, 5);
+g.setColor(0,0,0).fillCircle(center_x, center_y, 5);
+
 // setInterval(function() {
 //   x+=1/10000;
 //   y+=1/10000;
