@@ -344,17 +344,17 @@ class Map {
           offset += 2 + 3 * way_length;
         }
         way_length = raw_ways[offset] + (raw_ways[offset + 1] << 8);
-        let street = [];
+        let searched_street = [];
         offset += 2; // skip length
         for (let i = 0; i < way_length; i++) {
           let tile_id = raw_ways[offset] + (raw_ways[offset + 1] << 8);
           offset += 2;
           let local_way_id = raw_ways[offset];
           offset += 1;
-          street.push(new CWayId(tile_id, local_way_id));
+          searched_street.push(new CWayId(tile_id, local_way_id));
         }
         E.showMenu();
-        map.go_to(street);
+        street = searched_street; // propagate to global variable
       };
     }
     E.showMenu(menu);
@@ -367,7 +367,6 @@ class Map {
     let start = new Point(x, y);
     let starting_node = this.find_starting_node(start);
     let starting_point = starting_node.point;
-    console.log("street is", street);
     let ending_node = this.find_ending_node(start, street);
 
     let cos_direction = 1;
@@ -502,11 +501,9 @@ class Map {
     return (offset / 2);
   }
   greedy_path(start, end) {
-    console.log("at entry we still have", process.memory());
     let heap = [];
     let seen_nodes_size = Math.ceil(this.tiles_sizes_prefix[this.tiles_sizes_prefix.length-1] / 16);
     let seen_nodes = new Uint8Array(seen_nodes_size); // TODO: is it zeroed ?
-    console.log("seen nodes takes", E.getSizeOf(seen_nodes));
     let predecessors = [];
     let entry = new HeapEntry(null, start, start, start.point.squared_distance_to(end.point))
     let count = 0;
@@ -521,8 +518,6 @@ class Map {
       seen_nodes[Math.floor(start_id/8)] = seen_nodes[Math.floor(start_id/8)] | (1 << (start_id % 8));
       seen_nodes[Math.floor(end_id/8)] = seen_nodes[Math.floor(end_id/8)] | (1 << (end_id % 8));
       let current_node = entry.travel_end;
-      console.log("we are now at", current_node, count, entry.distance);
-      console.log("memory is now", process.memory());
       if (entry.predecessor !== null) {
         predecessors.push([current_node, entry.predecessor]);
       }
@@ -569,5 +564,12 @@ function rebuild_path(end, predecessors) {
   return path;
 }
 
+let street = null;
 let map = new Map("test.map");
 map.select_street();
+let street_interval = setInterval(function() {
+  if (street !== null) {
+    clearInterval(street_interval);
+    map.go_to(street);
+  }
+}, 1000);
