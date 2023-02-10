@@ -362,6 +362,7 @@ class Map {
   go_to(street) {
     let x = 5.79;
     let y = 45.22;
+    console.log("starting with", process.memory());
 
     this.display(x, y, 1, 0, 60000);
     let start = new Point(x, y);
@@ -383,7 +384,7 @@ class Map {
     g.setColor(1, 0, 0).fillCircle(final_x, final_y, 5);
     g.setColor(0, 0, 0).fillCircle(center_x, center_y, 5);
 
-    let path = this.greedy_path(starting_node, ending_node);
+    let path = this.a_star(starting_node, ending_node);
     console.log("path is", path);
 
 // setInterval(function() {
@@ -500,15 +501,16 @@ class Map {
     let offset = tile_offset + 2*id.local_node_id;
     return (offset / 2);
   }
-  greedy_path(start, end) {
+  a_star(start, end) {
+    console.log("starting a_star with", process.memory());
+    let greedy_path_length = this.greedy_path_length(start, end);
+    console.log("we now know greedy path length", greedy_path_length);
     let heap = [];
     let seen_nodes_size = Math.ceil(this.tiles_sizes_prefix[this.tiles_sizes_prefix.length-1] / 16);
     let seen_nodes = new Uint8Array(seen_nodes_size); // TODO: is it zeroed ?
     let predecessors = [];
-    let entry = new HeapEntry(null, start, start, start.point.squared_distance_to(end.point))
-    let count = 0;
+    let entry = new HeapEntry(null, start, start, 0);
     while (entry != null) {
-      count = count+1;
       let end_id = this.node_offset_id(entry.travel_end.id);
       if ((seen_nodes[Math.floor(end_id/8)]&(1<<(end_id % 8)))!=0) {
         entry = heappop(heap);
@@ -523,6 +525,58 @@ class Map {
       }
       if (current_node.is(end)) {
         return rebuild_path(current_node, predecessors);
+      }
+      let neighbours = this.neighbours(current_node);
+      for(let i=0; i < neighbours.length; i++) {
+        let travel = neighbours[i];
+        let d = entry.distance + Math.sqrt(travel[0].point.squared_distance_to(travel[1].point));
+        if (d + Math.sqrt(travel[1].point.squared_distance_to(end.point)) < greedy_path_length) {
+          let entry = new HeapEntry(current_node, travel[0], travel[1], d);
+          heappush(heap, entry);
+        }
+      }
+      entry = heappop(heap);
+    }
+    return null;
+  }
+  greedy_path(start, end) {
+    let predecessors = this.greedy_predecessors(start, end);
+    if (predecessors !== null) {
+      return rebuild_path(end, predecessors);
+    } else {
+      return null;
+    }
+  }
+  greedy_path_length(start, end) {
+    let predecessors = this.greedy_predecessors(start, end);
+    console.log("we have a greedy path");
+    if (predecessors !== null) {
+      return rebuild_path_length(end, predecessors);
+    } else {
+      return null;
+    }
+  }
+  greedy_predecessors(start, end) {
+    let heap = [];
+    let seen_nodes_size = Math.ceil(this.tiles_sizes_prefix[this.tiles_sizes_prefix.length-1] / 16);
+    let seen_nodes = new Uint8Array(seen_nodes_size); // TODO: is it zeroed ?
+    let predecessors = [];
+    let entry = new HeapEntry(null, start, start, start.point.squared_distance_to(end.point))
+    while (entry != null) {
+      let end_id = this.node_offset_id(entry.travel_end.id);
+      if ((seen_nodes[Math.floor(end_id/8)]&(1<<(end_id % 8)))!=0) {
+        entry = heappop(heap);
+        continue;
+      }
+      let start_id = this.node_offset_id(entry.travel_start.id);
+      seen_nodes[Math.floor(start_id/8)] = seen_nodes[Math.floor(start_id/8)] | (1 << (start_id % 8));
+      seen_nodes[Math.floor(end_id/8)] = seen_nodes[Math.floor(end_id/8)] | (1 << (end_id % 8));
+      let current_node = entry.travel_end;
+      if (entry.predecessor !== null) {
+        predecessors.push([current_node, entry.predecessor]);
+      }
+      if (current_node.is(end)) {
+        return predecessors;
       }
       let neighbours = this.neighbours(current_node);
       for(let i=0; i < neighbours.length; i++) {
@@ -552,6 +606,7 @@ class Map {
   }
 }
 
+
 function rebuild_path(end, predecessors) {
   let path = [end];
   for(let i=predecessors.length-1; i>=0; i--) {
@@ -562,6 +617,19 @@ function rebuild_path(end, predecessors) {
     }
   }
   return path;
+}
+
+function rebuild_path_length(end, predecessors) {
+  let current_node = end;  
+  let distance = 0;
+  for(let i=predecessors.length-1; i >=0; i--) {
+    let p = predecessors[i];
+    if (p[0].is(current_node)) {
+      distance += Math.sqrt(p[1].point.squared_distance_to(current_node.point));
+      current_node = p[1];
+    }
+  }
+  return distance;
 }
 
 let street = null;
