@@ -136,7 +136,6 @@ class CWayId {
 }
 class Map {
   constructor(filename) {
-    console.log("starting", process.memory());
 
     let s = require("Storage");
     let buffer = s.readArrayBuffer(filename);
@@ -262,7 +261,8 @@ class Map {
 
     let color_index = tile_num % 6;
     let colors = ["#f00", "#0f0", "#00f", "#ff0", "#f0f", "#0ff"];
-    g.setColor(colors[color_index]);
+    // g.setColor(colors[color_index]);
+    g.setColor("#000");
 
     let line_start_offset = 0;
     if (tile_y > 0) {
@@ -632,12 +632,54 @@ function rebuild_path_length(end, predecessors) {
   return distance;
 }
 
-let street = null;
-let map = new Map("test.map");
-map.select_street();
-let street_interval = setInterval(function() {
-  if (street !== null) {
-    clearInterval(street_interval);
-    map.go_to(street);
+let map = null;
+let displayed_x;
+let displayed_y;
+
+function load_map(gps_file) {
+  map = new Map(gps_file);
+  displayed_x = map.start_coordinates[0] + map.grid_size[0] * map.side / 2;
+  displayed_y = map.start_coordinates[1] + map.grid_size[1] * map.side / 2;
+  E.showMenu();
+  map.display(displayed_x, displayed_y, 1, 0, 60000);
+  // let x = 5.79;
+  // let y = 45.22;
+  // map.display(x, y, 1, 0, 60000);
+}
+
+let files = require("Storage").list(".gps");
+if (files.length <= 1) {
+  if (files.length == 0) {
+    E.showAlert("no .gps file found").then(function() {load()});
   }
-}, 1000);
+  load_map(files[0]);
+} else {
+  const menu = {
+    "": {title: "choose map"},
+  };
+  for(let i=0; i < files.length; i++) {
+    menu[files[i]] = load_map.bind(null, files[i]);
+  }
+}
+
+Bangle.on('stroke',o=>{
+  let first_x = o.xy[0];
+  let first_y = o.xy[1];
+  let last_x = o.xy[o.xy.length - 2];
+  let last_y = o.xy[o.xy.length - 1];
+  let xdiff = last_x - first_x;
+  let ydiff = last_y - first_y;
+  displayed_x += (xdiff / 80000); //TODO: scale + orientation
+  displayed_y -= (ydiff / 80000);
+  map.display(displayed_x, displayed_y, 1, 0, 60000);
+});
+
+
+// let street = null;
+// map.select_street();
+// let street_interval = setInterval(function() {
+//   if (street !== null) {
+//     clearInterval(street_interval);
+//     map.go_to(street);
+//   }
+// }, 1000);
