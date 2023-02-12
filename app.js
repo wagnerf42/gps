@@ -19,6 +19,7 @@ let cos_direction = 1;
 let sin_direction = 0;
 let scale_factor = 60000;
 let in_menu = false; // deactivate stroke/tap events when in menu
+let position = null;
 
 class HeapEntry {
   constructor(predecessor, travel_start, travel_end, distance) {
@@ -260,18 +261,31 @@ class Map {
           continue;
         }
         this.display_tile(x, y, local_x, local_y);
-        tiles_to_display.push(x + (y * this.grid_size[0]));
+        tiles_to_display.push(x + y * this.grid_size[0]);
       }
     }
     if (tiled_street !== null) {
       this.display_tile_path(tiled_street, tiles_to_display);
     }
+    if (position !== null) {
+      let my_coordinates = point_screen_coordinates(position.lon, position.lat);
+      g.setColor(0, 0, 0).fillCircle(my_coordinates[0], my_coordinates[1], 3);
+    }
+  }
+  point_screen_coordinates(x, y) {
+    let scaled_x = (x - displayed_x) * scale_factor;
+    let scaled_y = (y - displayed_y) * scale_factor;
+    let rotated_x = scaled_x * cos_direction - scaled_y * sin_direction;
+    let rotated_y = scaled_x * sin_direction + scaled_y * cos_direction;
+    let screen_x = center_x - Math.round(rotated_x);
+    let screen_y = center_y + Math.round(rotated_y);
+    return [screen_x, screen_y];
   }
   display_tile_path(path_tiles, tiles_to_display) {
     let next_tile_to_display = 0;
     let center_x = g.getWidth() / 2;
     let center_y = g.getHeight() / 2;
-    g.setColor(1,0,1);
+    g.setColor(1, 0, 1);
     for (let i = 0; i < path_tiles.length; i++) {
       let tile_number = path_tiles[i][0];
       while (tiles_to_display[next_tile_to_display] < tile_number) {
@@ -461,27 +475,27 @@ class Map {
       ways_labels += String.fromCharCode(raw_ways_labels[i]);
     }
     labels = ways_labels.split(/\n/);
-    
+
     function extract_street(j) {
-        let offset = 0;
-        let way_length;
-        for (let i = 0; i < j; i++) {
-          way_length = raw_ways[offset] + (raw_ways[offset + 1] << 8);
-          offset += 2 + 3 * way_length;
-        }
+      let offset = 0;
+      let way_length;
+      for (let i = 0; i < j; i++) {
         way_length = raw_ways[offset] + (raw_ways[offset + 1] << 8);
-        let searched_street = [];
-        offset += 2; // skip length
-        for (let i = 0; i < way_length; i++) {
-          let tile_id = raw_ways[offset] + (raw_ways[offset + 1] << 8);
-          offset += 2;
-          let local_way_id = raw_ways[offset];
-          offset += 1;
-          searched_street.push(new CWayId(tile_id, local_way_id));
-        }
-        E.showMenu();
-        in_menu = false;
-        current_street = searched_street; // propagate to global variable
+        offset += 2 + 3 * way_length;
+      }
+      way_length = raw_ways[offset] + (raw_ways[offset + 1] << 8);
+      let searched_street = [];
+      offset += 2; // skip length
+      for (let i = 0; i < way_length; i++) {
+        let tile_id = raw_ways[offset] + (raw_ways[offset + 1] << 8);
+        offset += 2;
+        let local_way_id = raw_ways[offset];
+        offset += 1;
+        searched_street.push(new CWayId(tile_id, local_way_id));
+      }
+      E.showMenu();
+      in_menu = false;
+      current_street = searched_street; // propagate to global variable
     }
 
     let menu = {};
@@ -860,3 +874,23 @@ Bangle.on("tap", function () {
   };
   E.showMenu(menu);
 });
+
+function gps_coordinates(data) {
+  // 0,0 coordinates are considered invalid since we sometimes receive them out of nowhere
+  let valid_coordinates =
+    !isNaN(data.lat) &&
+    !isNaN(data.lon) &&
+    (data.lat != 0.0 || data.lon != 0.0);
+  if (valid_coordinates) {
+    let initial_position = (position === null);
+    position = new Point(data.lon, data.lat);
+    if (initial_position) {
+      displayed_x = data.lon;
+      displayed_y = data.lat;
+      map.display();
+    }
+  }
+}
+
+Bangle.setGPSPower(true, "planis");
+Bangle.on("GPS", gps_coordinates);
