@@ -1,5 +1,24 @@
 const TILE_BORDER_THICKNESS = 1.0 / 111200.0;
-const SQUARED_TILE_BORDER_THICKNESS = TILE_BORDER_THICKNESS * TILE_BORDER_THICKNESS;
+const SQUARED_TILE_BORDER_THICKNESS =
+  TILE_BORDER_THICKNESS * TILE_BORDER_THICKNESS;
+
+const STREET_SHOW = 1;
+const STREET_GREEDY = 2;
+const STREET_ASTAR = 3;
+
+// these variables form the global state of the system.
+// they are not in a struct as to keep things fast.
+let map = null;
+let displayed_x;
+let displayed_y;
+let street_action = null;
+let current_street = null;
+let tiled_street = null;
+let street_interval = null;
+let cos_direction = 1;
+let sin_direction = 0;
+let scale_factor = 60000;
+let in_menu = false; // deactivate stroke/tap events when in menu
 
 class HeapEntry {
   constructor(predecessor, travel_start, travel_end, distance) {
@@ -15,11 +34,11 @@ function heappush(heap, entry) {
   if (heap.length == 1) {
     return;
   }
-  
+
   // up we go
   let current_index = heap.length - 1;
   // 0 1 2 3 4 5 6 7 8  dad(5) = 2 dad(6) = 2 -> dad(i) = (i-1)/2
-  let dad = Math.floor((current_index-1)/2);
+  let dad = Math.floor((current_index - 1) / 2);
   while (heap[dad].distance > heap[current_index].distance) {
     let tmp = heap[dad];
     heap[dad] = heap[current_index];
@@ -28,7 +47,7 @@ function heappush(heap, entry) {
     if (current_index == 0) {
       return;
     }
-    dad = Math.floor((current_index-1)/2);
+    dad = Math.floor((current_index - 1) / 2);
   }
 }
 
@@ -37,13 +56,16 @@ function heappop(heap) {
   let last = heap.pop();
   if (heap.length > 0) {
     heap[0] = last;
-    
+
     // down we go
     let current_index = 0;
-    while (current_index*2+1 < heap.length) {
-      let smallest_son = current_index*2+1;
-      let maybe_other_son = current_index*2+2;
-      if ((maybe_other_son < heap.length)&&(heap[smallest_son].distance > heap[maybe_other_son].distance)) {
+    while (current_index * 2 + 1 < heap.length) {
+      let smallest_son = current_index * 2 + 1;
+      let maybe_other_son = current_index * 2 + 2;
+      if (
+        maybe_other_son < heap.length &&
+        heap[smallest_son].distance > heap[maybe_other_son].distance
+      ) {
         smallest_son = maybe_other_son;
       }
       if (heap[current_index].distance < heap[smallest_son].distance) {
@@ -124,7 +146,10 @@ class GNode {
     this.point = node;
   }
   is(other) {
-    return (this.point.squared_distance_to(other.point) <= SQUARED_TILE_BORDER_THICKNESS);
+    return (
+      this.point.squared_distance_to(other.point) <=
+      SQUARED_TILE_BORDER_THICKNESS
+    );
   }
 }
 
@@ -136,7 +161,6 @@ class CWayId {
 }
 class Map {
   constructor(filename) {
-
     let s = require("Storage");
     let buffer = s.readArrayBuffer(filename);
     let offset = 0;
@@ -219,11 +243,11 @@ class Map {
     );
     offset += encoded_blocks_size;
   }
-  display(current_x, current_y, cos_direction, sin_direction, scale_factor) {
-    console.log("we are at", current_x, current_y);
+  display() {
+    console.log("we are at", displayed_x, displayed_y);
     g.clear();
-    let local_x = current_x - this.start_coordinates[0];
-    let local_y = current_y - this.start_coordinates[1];
+    let local_x = displayed_x - this.start_coordinates[0];
+    let local_y = displayed_y - this.start_coordinates[1];
     let tile_x = Math.floor(local_x / this.side);
     let tile_y = Math.floor(local_y / this.side);
     for (let y = tile_y - 1; y <= tile_y + 1; y++) {
@@ -238,29 +262,85 @@ class Map {
           x,
           y,
           local_x,
-          local_y,
-          cos_direction,
-          sin_direction,
-          scale_factor
+          local_y
         );
       }
     }
+  }
+  // turn the given street (array of CWayId) into an array (indexed by tile) of arrays of segments
+  street_to_tiled_path(street) {
+    // we need to weasel around to keep low memory
+    
+    // first, figure out which tiles are useful
+    let street_tiles = [];
+    for(let i=0; i<street.length; i++) {
+      street_tiles.push(street[i].tile_number);
+    }
+    street_tiles.sort();
+    let unique_street_tiles = [street_tiles[0]];
+    for(let i=1; i<street_tiles.length; i++) {
+      let tile_number = street_tiles[i];
+      if (unique_street_tiles[unique_street_tiles.length-1] != tile_number) {
+        unique_street_tiles.push(tile_number);
+      }
+    }
+
+    // now loop on the tiles and extract all ways
+    let tiled_ways = [];
+
+    for(let i=0; i<unique_street_tiles.length; i++) {
+      let tile_number = unique_street_tiles[i];
+      let tile_x = tile_number % this.grid_size[0];
+      let tile_y = (tile_number - tile_x) / this.grid_size[0];
+
+      let line_start_offset = 0;
+      if (tile_y > 0) {
+        line_start_offset =
+          this.tiles_sizes_prefix[tile_y * this.grid_size[0] - 1];
+      }
+
+      let tile_offset = 0;
+      if (tile_number >= 1) {
+        tile_offset = this.tiles_sizes_prefix[tile_number - 1] - line_start_offset;
+      }
+      
+      let tile_ways = [];
+      for (let i=0; i < street.length; i++) {
+        let way = street[i];
+        if (way.tile_number != tile_number) {
+          continue;
+        }
+        let offset = tile_offset + 4*way.local_way_id;
+
+        let x1 = (tile_x + this.binary_lines[tile_y][offset] / 255) * this.side + this.start_coordinates[0];
+        let y1 =
+          (tile_y + this.binary_lines[tile_y][offset + 1] / 255) * this.side + this.start_coordinates[1];
+        let x2 = (tile_x + this.binary_lines[tile_y][offset+2] / 255) * this.side + this.start_coordinates[0];
+        let y2 =
+          (tile_y + this.binary_lines[tile_y][offset + 3] / 255) * this.side + this.start_coordinates[1];
+        tile_ways.push(x1);
+        tile_ways.push(y1);
+        tile_ways.push(x2);
+        tile_ways.push(y2);
+      }
+      if (tile_ways.length > 0) {
+        tiled_ways.push([tile_number, tile_ways]);
+      }
+    }
+    return tiled_ways;
   }
   display_tile(
     tile_x,
     tile_y,
     current_x,
-    current_y,
-    cos_direction,
-    sin_direction,
-    scale_factor
+    current_y
   ) {
     let center_x = g.getWidth() / 2;
     let center_y = g.getHeight() / 2;
-    let tile_num = tile_x + tile_y * this.grid_size[0];
 
-    let color_index = tile_num % 6;
-    let colors = ["#f00", "#0f0", "#00f", "#ff0", "#f0f", "#0ff"];
+    let tile_num = tile_x + tile_y * this.grid_size[0];
+    // let color_index = tile_num % 6;
+    // let colors = ["#f00", "#0f0", "#00f", "#ff0", "#f0f", "#0ff"];
     // g.setColor(colors[color_index]);
     g.setColor("#000");
 
@@ -299,6 +379,8 @@ class Map {
     }
   }
   select_street() {
+    current_street = null;
+    tiled_street = null;
     function show_street_submenu(k) {
       map.select_street_block(k);
     }
@@ -313,6 +395,14 @@ class Map {
       };
     }
     E.showMenu(main_menu);
+
+    street_interval = setInterval(function () {
+      if (current_street !== null) {
+        clearInterval(street_interval);
+        tiled_street = map.street_to_tiled_path(current_street);
+        street_act();
+      }
+    }, 1000);
   }
   select_street_block(block_number) {
     let start = this.blocks_offsets[block_number];
@@ -354,7 +444,8 @@ class Map {
           searched_street.push(new CWayId(tile_id, local_way_id));
         }
         E.showMenu();
-        street = searched_street; // propagate to global variable
+        in_menu = false;
+        current_street = searched_street; // propagate to global variable
       };
     }
     E.showMenu(menu);
@@ -387,12 +478,12 @@ class Map {
     let path = this.a_star(starting_node, ending_node);
     console.log("path is", path);
 
-// setInterval(function() {
-//   x+=1/10000;
-//   y+=1/10000;
-//   map.display(x, y, 1, 0, 60000);
+    // setInterval(function() {
+    //   x+=1/10000;
+    //   y+=1/10000;
+    //   map.display(x, y, 1, 0, 60000);
 
-// }, 1000);
+    // }, 1000);
     console.log("DONE");
   }
   way(way_id) {
@@ -496,29 +587,31 @@ class Map {
   node_offset_id(id) {
     let tile_offset = 0;
     if (id.tile_number > 0) {
-      tile_offset = this.tiles_sizes_prefix[id.tile_number-1];
+      tile_offset = this.tiles_sizes_prefix[id.tile_number - 1];
     }
-    let offset = tile_offset + 2*id.local_node_id;
-    return (offset / 2);
+    let offset = tile_offset + 2 * id.local_node_id;
+    return offset / 2;
   }
   a_star(start, end) {
-    console.log("starting a_star with", process.memory());
     let greedy_path_length = this.greedy_path_length(start, end);
-    console.log("we now know greedy path length", greedy_path_length);
     let heap = [];
-    let seen_nodes_size = Math.ceil(this.tiles_sizes_prefix[this.tiles_sizes_prefix.length-1] / 16);
+    let seen_nodes_size = Math.ceil(
+      this.tiles_sizes_prefix[this.tiles_sizes_prefix.length - 1] / 16
+    );
     let seen_nodes = new Uint8Array(seen_nodes_size); // TODO: is it zeroed ?
     let predecessors = [];
     let entry = new HeapEntry(null, start, start, 0);
     while (entry != null) {
       let end_id = this.node_offset_id(entry.travel_end.id);
-      if ((seen_nodes[Math.floor(end_id/8)]&(1<<(end_id % 8)))!=0) {
+      if ((seen_nodes[Math.floor(end_id / 8)] & (1 << end_id % 8)) != 0) {
         entry = heappop(heap);
         continue;
       }
       let start_id = this.node_offset_id(entry.travel_start.id);
-      seen_nodes[Math.floor(start_id/8)] = seen_nodes[Math.floor(start_id/8)] | (1 << (start_id % 8));
-      seen_nodes[Math.floor(end_id/8)] = seen_nodes[Math.floor(end_id/8)] | (1 << (end_id % 8));
+      seen_nodes[Math.floor(start_id / 8)] =
+        seen_nodes[Math.floor(start_id / 8)] | (1 << start_id % 8);
+      seen_nodes[Math.floor(end_id / 8)] =
+        seen_nodes[Math.floor(end_id / 8)] | (1 << end_id % 8);
       let current_node = entry.travel_end;
       if (entry.predecessor !== null) {
         predecessors.push([current_node, entry.predecessor]);
@@ -527,10 +620,15 @@ class Map {
         return rebuild_path(current_node, predecessors);
       }
       let neighbours = this.neighbours(current_node);
-      for(let i=0; i < neighbours.length; i++) {
+      for (let i = 0; i < neighbours.length; i++) {
         let travel = neighbours[i];
-        let d = entry.distance + Math.sqrt(travel[0].point.squared_distance_to(travel[1].point));
-        if (d + Math.sqrt(travel[1].point.squared_distance_to(end.point)) < greedy_path_length) {
+        let d =
+          entry.distance +
+          Math.sqrt(travel[0].point.squared_distance_to(travel[1].point));
+        if (
+          d + Math.sqrt(travel[1].point.squared_distance_to(end.point)) <
+          greedy_path_length
+        ) {
           let entry = new HeapEntry(current_node, travel[0], travel[1], d);
           heappush(heap, entry);
         }
@@ -549,7 +647,6 @@ class Map {
   }
   greedy_path_length(start, end) {
     let predecessors = this.greedy_predecessors(start, end);
-    console.log("we have a greedy path");
     if (predecessors !== null) {
       return rebuild_path_length(end, predecessors);
     } else {
@@ -558,19 +655,28 @@ class Map {
   }
   greedy_predecessors(start, end) {
     let heap = [];
-    let seen_nodes_size = Math.ceil(this.tiles_sizes_prefix[this.tiles_sizes_prefix.length-1] / 16);
+    let seen_nodes_size = Math.ceil(
+      this.tiles_sizes_prefix[this.tiles_sizes_prefix.length - 1] / 16
+    );
     let seen_nodes = new Uint8Array(seen_nodes_size); // TODO: is it zeroed ?
     let predecessors = [];
-    let entry = new HeapEntry(null, start, start, start.point.squared_distance_to(end.point))
+    let entry = new HeapEntry(
+      null,
+      start,
+      start,
+      start.point.squared_distance_to(end.point)
+    );
     while (entry != null) {
       let end_id = this.node_offset_id(entry.travel_end.id);
-      if ((seen_nodes[Math.floor(end_id/8)]&(1<<(end_id % 8)))!=0) {
+      if ((seen_nodes[Math.floor(end_id / 8)] & (1 << end_id % 8)) != 0) {
         entry = heappop(heap);
         continue;
       }
       let start_id = this.node_offset_id(entry.travel_start.id);
-      seen_nodes[Math.floor(start_id/8)] = seen_nodes[Math.floor(start_id/8)] | (1 << (start_id % 8));
-      seen_nodes[Math.floor(end_id/8)] = seen_nodes[Math.floor(end_id/8)] | (1 << (end_id % 8));
+      seen_nodes[Math.floor(start_id / 8)] =
+        seen_nodes[Math.floor(start_id / 8)] | (1 << start_id % 8);
+      seen_nodes[Math.floor(end_id / 8)] =
+        seen_nodes[Math.floor(end_id / 8)] | (1 << end_id % 8);
       let current_node = entry.travel_end;
       if (entry.predecessor !== null) {
         predecessors.push([current_node, entry.predecessor]);
@@ -579,9 +685,14 @@ class Map {
         return predecessors;
       }
       let neighbours = this.neighbours(current_node);
-      for(let i=0; i < neighbours.length; i++) {
+      for (let i = 0; i < neighbours.length; i++) {
         let travel = neighbours[i];
-        let entry = new HeapEntry(current_node, travel[0], travel[1], travel[1].point.squared_distance_to(end.point));
+        let entry = new HeapEntry(
+          current_node,
+          travel[0],
+          travel[1],
+          travel[1].point.squared_distance_to(end.point)
+        );
         heappush(heap, entry);
       }
       entry = heappop(heap);
@@ -591,9 +702,9 @@ class Map {
   neighbours(node) {
     let tiles = this.node_tiles(node.point);
     let edges = [];
-    for(let i=0; i<tiles.length; i++) {
+    for (let i = 0; i < tiles.length; i++) {
       let new_edges = this.tile_edges(tiles[i][0], tiles[i][1]);
-      for(let j=0; j<new_edges.length; j++) {
+      for (let j = 0; j < new_edges.length; j++) {
         let nodes = new_edges[j];
         if (nodes[0].is(node)) {
           edges.push(nodes);
@@ -606,13 +717,13 @@ class Map {
   }
 }
 
-
 function rebuild_path(end, predecessors) {
   let path = [end];
-  for(let i=predecessors.length-1; i>=0; i--) {
-    let current_node = path[path.length-1];
+  for (let i = predecessors.length - 1; i >= 0; i--) {
+    let current_node = path[path.length - 1];
     let p = predecessors[i];
-    if (p[0].is(current_node)) { //TODO: seems fishy
+    if (p[0].is(current_node)) {
+      //TODO: seems fishy
       path.push(p[1]);
     }
   }
@@ -620,9 +731,9 @@ function rebuild_path(end, predecessors) {
 }
 
 function rebuild_path_length(end, predecessors) {
-  let current_node = end;  
+  let current_node = end;
   let distance = 0;
-  for(let i=predecessors.length-1; i >=0; i--) {
+  for (let i = predecessors.length - 1; i >= 0; i--) {
     let p = predecessors[i];
     if (p[0].is(current_node)) {
       distance += Math.sqrt(p[1].point.squared_distance_to(current_node.point));
@@ -632,54 +743,80 @@ function rebuild_path_length(end, predecessors) {
   return distance;
 }
 
-let map = null;
-let displayed_x;
-let displayed_y;
 
 function load_map(gps_file) {
   map = new Map(gps_file);
-  displayed_x = map.start_coordinates[0] + map.grid_size[0] * map.side / 2;
-  displayed_y = map.start_coordinates[1] + map.grid_size[1] * map.side / 2;
+  displayed_x = map.start_coordinates[0] + (map.grid_size[0] * map.side) / 2;
+  displayed_y = map.start_coordinates[1] + (map.grid_size[1] * map.side) / 2;
   E.showMenu();
-  map.display(displayed_x, displayed_y, 1, 0, 60000);
-  // let x = 5.79;
-  // let y = 45.22;
-  // map.display(x, y, 1, 0, 60000);
+  map.display();
 }
 
 let files = require("Storage").list(".gps");
 if (files.length <= 1) {
   if (files.length == 0) {
-    E.showAlert("no .gps file found").then(function() {load()});
+    E.showAlert("no .gps file found").then(function () {
+      load();
+    });
   }
   load_map(files[0]);
 } else {
   const menu = {
-    "": {title: "choose map"},
+    "": { title: "choose map" },
   };
-  for(let i=0; i < files.length; i++) {
+  for (let i = 0; i < files.length; i++) {
     menu[files[i]] = load_map.bind(null, files[i]);
   }
 }
 
-Bangle.on('stroke',o=>{
+function street_act() {
+  if (street_action == STREET_SHOW) {
+    displayed_x = tiled_street[0][1][0];
+    displayed_y = tiled_street[0][1][1];
+    map.display();
+  } else {
+    console.log("STREET_ACTION", street_action);
+  }
+}
+
+Bangle.on("stroke", (o) => {
+  if (in_menu) {
+    return;
+  }
   let first_x = o.xy[0];
   let first_y = o.xy[1];
   let last_x = o.xy[o.xy.length - 2];
   let last_y = o.xy[o.xy.length - 1];
   let xdiff = last_x - first_x;
   let ydiff = last_y - first_y;
-  displayed_x += (xdiff / 80000); //TODO: scale + orientation
-  displayed_y -= (ydiff / 80000);
-  map.display(displayed_x, displayed_y, 1, 0, 60000);
+  displayed_x += xdiff / (scale_factor*4/3); //TODO: orientation
+  displayed_y -= ydiff / (scale_factor*4/3);
+  map.display();
 });
 
-
-// let street = null;
-// map.select_street();
-// let street_interval = setInterval(function() {
-//   if (street !== null) {
-//     clearInterval(street_interval);
-//     map.go_to(street);
-//   }
-// }, 1000);
+Bangle.on("tap", function () {
+  if (in_menu) {
+    return;
+  }
+  in_menu = true;
+  const menu = {
+    "": { title: "choose action" },
+    "show street": function () {
+      street_action = STREET_SHOW;
+      map.select_street();
+    },
+    "greedy path": function () {
+      street_action = STREET_GREEDY;
+      map.select_street();
+    },
+    "a* path": function () {
+      street_action = STREET_ASTAR;
+      map.select_street();
+    },
+    "back to map": function () {
+      in_menu = false;
+      E.showMenu();
+    },
+  };
+  E.showMenu(menu);
+});
