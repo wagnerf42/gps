@@ -250,6 +250,7 @@ class Map {
     let local_y = displayed_y - this.start_coordinates[1];
     let tile_x = Math.floor(local_x / this.side);
     let tile_y = Math.floor(local_y / this.side);
+    let tiles_to_display = [];
     for (let y = tile_y - 1; y <= tile_y + 1; y++) {
       if (y < 0 || y >= this.grid_size[1]) {
         continue;
@@ -258,29 +259,69 @@ class Map {
         if (x < 0 || x >= this.grid_size[0]) {
           continue;
         }
-        this.display_tile(
-          x,
-          y,
-          local_x,
-          local_y
-        );
+        this.display_tile(x, y, local_x, local_y);
+        tiles_to_display.push(x + (y * this.grid_size[0]));
+      }
+    }
+    if (tiled_street !== null) {
+      this.display_tile_path(tiled_street, tiles_to_display);
+    }
+  }
+  display_tile_path(path_tiles, tiles_to_display) {
+    let next_tile_to_display = 0;
+    let center_x = g.getWidth() / 2;
+    let center_y = g.getHeight() / 2;
+    g.setColor(1,0,1);
+    for (let i = 0; i < path_tiles.length; i++) {
+      let tile_number = path_tiles[i][0];
+      while (tiles_to_display[next_tile_to_display] < tile_number) {
+        next_tile_to_display++;
+        if (next_tile_to_display >= tiles_to_display.length) {
+          return;
+        }
+      }
+      if (tile_number < tiles_to_display[next_tile_to_display]) {
+        continue;
+      }
+
+      let tile_content = path_tiles[i][1];
+      for (let j = 0; j < tile_content.length; j += 4) {
+        let x1 = tile_content[j];
+        let y1 = tile_content[j + 1];
+        let x2 = tile_content[j + 2];
+        let y2 = tile_content[j + 3];
+
+        let scaled_x = (x1 - displayed_x) * scale_factor;
+        let scaled_y = (y1 - displayed_y) * scale_factor;
+        let rotated_x = scaled_x * cos_direction - scaled_y * sin_direction;
+        let rotated_y = scaled_x * sin_direction + scaled_y * cos_direction;
+        let final_x1 = center_x - Math.round(rotated_x);
+        let final_y1 = center_y + Math.round(rotated_y);
+
+        scaled_x = (x2 - displayed_x) * scale_factor;
+        scaled_y = (y2 - displayed_y) * scale_factor;
+        rotated_x = scaled_x * cos_direction - scaled_y * sin_direction;
+        rotated_y = scaled_x * sin_direction + scaled_y * cos_direction;
+        let final_x2 = center_x - Math.round(rotated_x);
+        let final_y2 = center_y + Math.round(rotated_y);
+        g.drawLine(final_x1, final_y1, final_x2, final_y2);
       }
     }
   }
   // turn the given street (array of CWayId) into an array (indexed by tile) of arrays of segments
   street_to_tiled_path(street) {
     // we need to weasel around to keep low memory
-    
+
     // first, figure out which tiles are useful
     let street_tiles = [];
-    for(let i=0; i<street.length; i++) {
+    for (let i = 0; i < street.length; i++) {
       street_tiles.push(street[i].tile_number);
     }
     street_tiles.sort();
     let unique_street_tiles = [street_tiles[0]];
-    for(let i=1; i<street_tiles.length; i++) {
+    for (let i = 1; i < street_tiles.length; i++) {
       let tile_number = street_tiles[i];
-      if (unique_street_tiles[unique_street_tiles.length-1] != tile_number) {
+      if (unique_street_tiles[unique_street_tiles.length - 1] != tile_number) {
         unique_street_tiles.push(tile_number);
       }
     }
@@ -288,7 +329,7 @@ class Map {
     // now loop on the tiles and extract all ways
     let tiled_ways = [];
 
-    for(let i=0; i<unique_street_tiles.length; i++) {
+    for (let i = 0; i < unique_street_tiles.length; i++) {
       let tile_number = unique_street_tiles[i];
       let tile_x = tile_number % this.grid_size[0];
       let tile_y = (tile_number - tile_x) / this.grid_size[0];
@@ -301,23 +342,30 @@ class Map {
 
       let tile_offset = 0;
       if (tile_number >= 1) {
-        tile_offset = this.tiles_sizes_prefix[tile_number - 1] - line_start_offset;
+        tile_offset =
+          this.tiles_sizes_prefix[tile_number - 1] - line_start_offset;
       }
-      
+
       let tile_ways = [];
-      for (let i=0; i < street.length; i++) {
+      for (let i = 0; i < street.length; i++) {
         let way = street[i];
         if (way.tile_number != tile_number) {
           continue;
         }
-        let offset = tile_offset + 4*way.local_way_id;
+        let offset = tile_offset + 4 * way.local_way_id;
 
-        let x1 = (tile_x + this.binary_lines[tile_y][offset] / 255) * this.side + this.start_coordinates[0];
+        let x1 =
+          (tile_x + this.binary_lines[tile_y][offset] / 255) * this.side +
+          this.start_coordinates[0];
         let y1 =
-          (tile_y + this.binary_lines[tile_y][offset + 1] / 255) * this.side + this.start_coordinates[1];
-        let x2 = (tile_x + this.binary_lines[tile_y][offset+2] / 255) * this.side + this.start_coordinates[0];
+          (tile_y + this.binary_lines[tile_y][offset + 1] / 255) * this.side +
+          this.start_coordinates[1];
+        let x2 =
+          (tile_x + this.binary_lines[tile_y][offset + 2] / 255) * this.side +
+          this.start_coordinates[0];
         let y2 =
-          (tile_y + this.binary_lines[tile_y][offset + 3] / 255) * this.side + this.start_coordinates[1];
+          (tile_y + this.binary_lines[tile_y][offset + 3] / 255) * this.side +
+          this.start_coordinates[1];
         tile_ways.push(x1);
         tile_ways.push(y1);
         tile_ways.push(x2);
@@ -329,12 +377,7 @@ class Map {
     }
     return tiled_ways;
   }
-  display_tile(
-    tile_x,
-    tile_y,
-    current_x,
-    current_y
-  ) {
+  display_tile(tile_x, tile_y, current_x, current_y) {
     let center_x = g.getWidth() / 2;
     let center_y = g.getHeight() / 2;
 
@@ -382,17 +425,14 @@ class Map {
     current_street = null;
     tiled_street = null;
     function show_street_submenu(k) {
+      E.showMenu();
       map.select_street_block(k);
     }
     let main_menu = {};
     for (let i = 0; i < this.main_streets_labels.length - 1; i++) {
       // TODO: virer lignes vides dans rust
-      let j = new Number(i);
       let label_copy = this.main_streets_labels[i].split("").join(""); // without this it does not work
-      main_menu[label_copy] = function () {
-        E.showMenu();
-        show_street_submenu(j);
-      };
+      main_menu[label_copy] = show_street_submenu.bind(null, i);
     }
     E.showMenu(main_menu);
 
@@ -421,12 +461,8 @@ class Map {
       ways_labels += String.fromCharCode(raw_ways_labels[i]);
     }
     labels = ways_labels.split(/\n/);
-
-    let menu = {};
-    for (let i = 0; i < labels.length; i++) {
-      let j = new Number(i);
-      let label_copy = labels[i].split("").join(""); // without this it does not work
-      menu[label_copy] = function () {
+    
+    function extract_street(j) {
         let offset = 0;
         let way_length;
         for (let i = 0; i < j; i++) {
@@ -446,7 +482,12 @@ class Map {
         E.showMenu();
         in_menu = false;
         current_street = searched_street; // propagate to global variable
-      };
+    }
+
+    let menu = {};
+    for (let i = 0; i < labels.length; i++) {
+      let label_copy = labels[i].split("").join(""); // without this it does not work
+      menu[label_copy] = extract_street.bind(null, i);
     }
     E.showMenu(menu);
   }
@@ -743,7 +784,6 @@ function rebuild_path_length(end, predecessors) {
   return distance;
 }
 
-
 function load_map(gps_file) {
   map = new Map(gps_file);
   displayed_x = map.start_coordinates[0] + (map.grid_size[0] * map.side) / 2;
@@ -789,8 +829,8 @@ Bangle.on("stroke", (o) => {
   let last_y = o.xy[o.xy.length - 1];
   let xdiff = last_x - first_x;
   let ydiff = last_y - first_y;
-  displayed_x += xdiff / (scale_factor*4/3); //TODO: orientation
-  displayed_y -= ydiff / (scale_factor*4/3);
+  displayed_x += xdiff / ((scale_factor * 4) / 3); //TODO: orientation
+  displayed_y -= ydiff / ((scale_factor * 4) / 3);
   map.display();
 });
 
