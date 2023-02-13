@@ -6,7 +6,7 @@ const STREET_SHOW = 1;
 const STREET_GREEDY = 2;
 const STREET_ASTAR = 3;
 
-const SIMULATED = false;
+const SIMULATED = true;
 
 // these variables form the global state of the system.
 // they are not in a struct as to keep things fast.
@@ -85,15 +85,6 @@ function heappop(heap) {
   return min;
 }
 
-let fake_compass = 20;
-function get_compass() {
-  if (SIMULATED) {
-    return {"heading": fake_compass};
-  } else {
-    return Bangle.getCompass();
-  }
-}
-
 class Point {
   constructor(x, y) {
     this.x = x;
@@ -103,6 +94,24 @@ class Point {
     let xdiff = this.x - other.x;
     let ydiff = this.y - other.y;
     return xdiff * xdiff + ydiff * ydiff;
+  }
+  distance(other_point) {
+    //see https://www.movable-type.co.uk/scripts/latlong.html
+    const R = 6371e3; // meters
+    const phi1 = (this.y * Math.PI) / 180;
+    const phi2 = (other_point.y * Math.PI) / 180;
+    const deltaphi = ((other_point.y - this.y) * Math.PI) / 180;
+    const deltalambda = ((other_point.x - this.x) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaphi / 2) * Math.sin(deltaphi / 2) +
+      Math.cos(phi1) *
+        Math.cos(phi2) *
+        Math.sin(deltalambda / 2) *
+        Math.sin(deltalambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // in meters
   }
   // return all tiles we belong to (in absolute coordinates)
   tiles(side) {
@@ -263,13 +272,6 @@ class Map {
     }
     displaying = true;
 
-    let compass = get_compass();
-    if (compass !== undefined) {
-        angle = compass.heading;
-    }
-    cos_direction = Math.cos(angle*Math.PI / 180);
-    sin_direction = Math.sin(angle*Math.PI / 180);
-
     console.log("we are at", displayed_x, displayed_y);
     g.clear();
     let local_x = displayed_x - this.start_coordinates[0];
@@ -293,7 +295,10 @@ class Map {
       this.display_tile_path(tiled_street, tiles_to_display);
     }
     if (position !== null) {
-      let my_coordinates = this.point_screen_coordinates(position.x, position.y);
+      let my_coordinates = this.point_screen_coordinates(
+        position.x,
+        position.y
+      );
       g.setColor(0, 0, 0).fillCircle(my_coordinates[0], my_coordinates[1], 3);
     }
     displaying = false;
@@ -830,7 +835,7 @@ function street_act() {
 }
 
 Bangle.on("stroke", (o) => {
-  if ((in_menu)||(map === null)) {
+  if (in_menu || map === null) {
     return;
   }
   // we move display according to stroke
@@ -842,17 +847,17 @@ Bangle.on("stroke", (o) => {
   let ydiff = last_y - first_y;
 
   let angle_back = -angle;
-  let c = Math.cos(angle_back * Math.PI / 180);
-  let s = Math.sin(angle_back * Math.PI / 180);
+  let c = Math.cos((angle_back * Math.PI) / 180);
+  let s = Math.sin((angle_back * Math.PI) / 180);
   let rotated_x = xdiff * c - ydiff * s;
   let rotated_y = xdiff * s + ydiff * c;
-  displayed_x += rotated_x / ((scale_factor * 4) / 3); 
+  displayed_x += rotated_x / ((scale_factor * 4) / 3);
   displayed_y -= rotated_y / ((scale_factor * 4) / 3);
   map.display();
 });
 
-Bangle.on("tap", function () {
-  if (in_menu) {
+Bangle.on("tap", function (tap) {
+  if (in_menu || !tap.double) {
     return;
   }
   in_menu = true;
@@ -879,6 +884,7 @@ Bangle.on("tap", function () {
   E.showMenu(menu);
 });
 
+old_points = [];
 function gps_coordinates(data) {
   // 0,0 coordinates are considered invalid since we sometimes receive them out of nowhere
   let valid_coordinates =
@@ -887,48 +893,59 @@ function gps_coordinates(data) {
     (data.lat != 0.0 || data.lon != 0.0);
   if (valid_coordinates) {
     let new_position = new Point(data.lon, data.lat);
-    if ((position === null)||(new_position.squared_distance_to(position) > SQUARED_TILE_BORDER_THICKNESS)) {
-      displayed_x = data.lon;
-      displayed_y = data.lat;
-      position = new_position;
-      map.display();
-    }
-  }
-}
 
-function detect_direction_change(data) {
-  if (Math.abs(data.heading - angle) > 10) {
-    if (map !== null) {
-      map.display();
+    if (old_points.length == 0) {
+      old_points.push(new_position);
+    } else {
+      if (old_points.length == 4) {
+        old_points.shift();
+      }
+
+      let previous_point = old_points[old_points.length - 1];
+      let distance_to_previous = previous_point.distance(new_position);
+      // gps signal is noisy but rarely above 4 meters
+      if (distance_to_previous < 4) {
+        return;
+      }
+      old_points.push(new_position);
+
+      // let's just take angle of segment between newest point and a point a bit before
+      let previous_index = old_points.length - 3;
+      if (previous_index < 0) {
+        previous_index = 0;
+      }
+      let xdiff = new_position.x - old_points[previous_index].x;
+      let ydiff = new_position.y - old_points[previous_index].y;
+      angle = Math.atan2(ydiff, xdiff);
+      cos_direction = Math.cos(angle);
+      sin_direction = Math.sin(angle);
     }
+    position = new_position;
+    displayed_x = position.x;
+    displayed_y = position.y;
+    map.display();
   }
 }
 
 if (!SIMULATED) {
   Bangle.setGPSPower(true, "planis");
-  Bangle.setCompassPower(true, "planis");
   Bangle.on("GPS", gps_coordinates);
-  Bangle.on("mag", detect_direction_change);
 } else {
   console.log("welcome to the simulation");
   let i = 0.5;
   let going_forward = true;
-  setInterval(function() {
+  setInterval(function () {
     if (going_forward) {
-      i += 1/5000;
+      i += 1 / 5000;
     } else {
-      i -= 1/5000;
+      i -= 1 / 5000;
     }
     if (map !== null) {
       let xmin = map.start_coordinates[0];
       let ymin = map.start_coordinates[1];
       let x = xmin + i * map.grid_size[0] * map.side;
       let y = ymin + i * map.grid_size[1] * map.side;
-      gps_coordinates({"lon": x, "lat": y});
+      gps_coordinates({ lon: x, lat: y });
     }
-    fake_compass += Math.random() * 5;
-    detect_direction_change({"heading": fake_compass});
   }, 1000);
- 
 }
-
