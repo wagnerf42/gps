@@ -6,24 +6,25 @@ const STREET_SHOW = 1;
 const STREET_GREEDY = 2;
 const STREET_ASTAR = 3;
 
-const SIMULATED = true;
+const SIMULATED = false;
 
 // these variables form the global state of the system.
 // they are not in a struct as to keep things fast.
 let map = null;
-let displaying = false;
-let displayed_x;
+let displaying = false; // disable display if we are already displaying
+let displayed_x; // center point
 let displayed_y;
-let street_action = null;
-let current_street = null;
-let tiled_street = null;
-let street_interval = null;
-let angle = 0;
-let cos_direction = 1;
+let street_action = null; // what to do after selecting a street
+let current_street = null; // street we selected
+let tiled_street = null; // selected street in a display friendly format
+let street_interval = null; // interval for street changes detection (to force freeing of memory at end of street menu)
+let angle = 0; // where we look at
+let cos_direction = 1; // cos and sin of angle
 let sin_direction = 0;
-let scale_factor = 60000;
+let scale_factor = 60000; // map scale
 let in_menu = false; // deactivate stroke/tap events when in menu
-let position = null;
+let position = null; // where we are
+let tiled_path = null;
 
 class HeapEntry {
   constructor(predecessor, travel_start, travel_end, distance) {
@@ -294,6 +295,9 @@ class Map {
     if (tiled_street !== null) {
       this.display_tile_path(tiled_street, tiles_to_display);
     }
+    if (tiled_path !== null) {
+      this.display_tile_path(tiled_path, tiles_to_display);
+    }
     if (position !== null) {
       let my_coordinates = this.point_screen_coordinates(
         position.x,
@@ -492,7 +496,6 @@ class Map {
     }, 1000);
   }
   select_street_block(block_number) {
-    console.log("street block start");
     let start = this.blocks_offsets[block_number];
     let end = this.blocks_offsets[block_number + 1]; // TODO: fixme
     let compressed_block = this.compressed_streets.slice(start, end);
@@ -509,7 +512,6 @@ class Map {
       ways_labels += String.fromCharCode(raw_ways_labels[i]);
     }
     labels = ways_labels.split(/\n/);
-    console.log("street block end");
 
     function extract_street(j) {
       let offset = 0;
@@ -830,7 +832,21 @@ function street_act() {
     displayed_y = tiled_street[0][1][1];
     map.display();
   } else {
-    console.log("STREET_ACTION", street_action);
+    if (position === null) {
+      E.showAlert("wait first for gps signal").then(function () {
+        map.display();
+      });
+    } else {
+      let starting_node = map.find_starting_node(position);
+      let ending_node = map.find_ending_node(position, current_street);
+      let path;
+      if (street_action == STREET_GREEDY) {
+        path = map.greedy_path(starting_node, ending_node);
+      } else {
+        path = map.astar(starting_node, ending_node);
+      }
+      tiled_path = map.street_to_tiled_path(path);
+    }
   }
 }
 
