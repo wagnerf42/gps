@@ -179,6 +179,31 @@ impl Map {
                 distance: travel[1].squared_distance_to(end),
             }));
         }
+        let seen_nodes = predecessors
+            .into_iter()
+            .flat_map(|(a, b)| [a.node, b.node])
+            .collect::<Vec<_>>();
+        let min_distance = seen_nodes
+            .iter()
+            .map(|n| n.distance_to(&end.node))
+            .min_by(|d1, d2| d1.partial_cmp(d2).unwrap());
+        eprintln!(
+            "min distance is {:?} and we want < {}",
+            min_distance, TILE_BORDER_THICKNESS
+        );
+
+        save_svg(
+            "fail.svg",
+            self.bounding_box(),
+            [
+                self as SvgW,
+                &crate::svg::UniColorNodes(seen_nodes) as SvgW,
+                start as SvgW,
+                end as SvgW,
+            ],
+        )
+        .unwrap();
+
         0.
     }
 

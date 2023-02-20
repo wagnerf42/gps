@@ -28,6 +28,20 @@ impl Node {
         let dy = other.y - self.y;
         dx * dx + dy * dy
     }
+    pub fn exact_meters_to(&self, other: &Node) -> f64 {
+        //see https://www.movable-type.co.uk/scripts/latlong.html
+        let r = 6_371_000.; // metres
+        let phi1 = (self.y * std::f64::consts::PI) / 180.;
+        let phi2 = (other.y * std::f64::consts::PI) / 180.;
+        let deltaphi = ((other.y - self.y) * std::f64::consts::PI) / 180.;
+        let deltalambda = ((other.x - self.x) * std::f64::consts::PI) / 180.;
+
+        let a = (deltaphi / 2.).sin() * (deltaphi / 2.).sin()
+            + phi1.cos() * phi2.cos() * (deltalambda / 2.).sin() * (deltalambda / 2.).sin();
+        let c = 2. * a.sqrt().atan2((1. - a).sqrt());
+
+        r * c
+    }
 
     pub fn distance_to(&self, other: &Node) -> f64 {
         self.squared_distance_to(other).sqrt()
