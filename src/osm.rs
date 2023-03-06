@@ -1,19 +1,14 @@
+use itertools::Itertools;
 use std::collections::HashMap;
 use xml::{reader::XmlEvent, EventReader};
 
 use crate::{Node, NodeId, WayId};
 
-pub async fn request(
-    xmin: f64,
-    ymin: f64,
-    xmax: f64,
-    ymax: f64,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Error>> {
+    let polygon_string: String = polygon.iter().flat_map(|n| [n.x, n.y]).join(" ");
     let query = format!(
-        "https://overpass-api.de/api/interpreter?data=
-        [bbox: {ymin}, {xmin}, {ymax}, {xmax}];
-        (
-        way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"];
+        "(
+        way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"](poly:\"{polygon_string}\");
         >;
         );
         out body;",
@@ -21,7 +16,11 @@ pub async fn request(
     let client = reqwest::Client::builder()
         //.user_agent("osm-geo-mapper")
         .build()?;
-    let response = client.get(&query).send().await?;
+    let response = client
+        .post("https://overpass-api.de/api/interpreter")
+        .body(query)
+        .send()
+        .await?;
     let result = response.text().await?;
     Ok(result)
 }
