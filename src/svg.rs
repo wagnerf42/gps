@@ -13,6 +13,20 @@ pub trait Svg<W: Write> {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()>;
 }
 
+pub struct UniColorNodes(pub Vec<Node>);
+
+impl<W: Write> Svg<W> for UniColorNodes {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        self.0.iter().try_for_each(|n| {
+            writeln!(
+                writer,
+                "<circle cx='{}' cy='{}' fill='{color}' r='0.1%'/>",
+                n.x, n.y,
+            )
+        })
+    }
+}
+
 impl<W: Write> Svg<W> for &[Node] {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
         self.iter().tuple_windows().try_for_each(|(n1, n2)| {
@@ -43,7 +57,7 @@ impl<W: Write> Svg<W> for Node {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
         writeln!(
             writer,
-            "<circle cx='{}' cy='{}' fill='{color}' r='0.8%'/>",
+            "<circle cx='{}' cy='{}' fill='{color}' r='0.4%'/>",
             self.x, self.y,
         )
     }

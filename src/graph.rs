@@ -156,12 +156,23 @@ impl Map {
         });
         let mut seen_nodes = vec![0u8; 1 + self.binary_ways.len() / 16];
         let mut predecessors = Vec::new();
+        let mut loop_count = 0;
         while let Some(entry) = heap.pop() {
+            loop_count += 1;
+            if loop_count == 300 {
+                break;
+            };
+
             let n1_offset_id = self.node_offset_id(&entry.travel[1].id);
             if (seen_nodes[n1_offset_id / 8] & (1u8 << (n1_offset_id % 8))) != 0 {
+                eprintln!("skipping {:?} {}", entry.travel[1].id, n1_offset_id);
                 continue;
             }
             let n0_offset_id = self.node_offset_id(&entry.travel[0].id);
+            eprintln!(
+                "loop {loop_count}, we are at {} {:?} {}, from {:?} {}",
+                entry.distance, entry.travel[1].id, n1_offset_id, entry.travel[0].id, n0_offset_id
+            );
             seen_nodes[n0_offset_id / 8] |= 1u8 << (n0_offset_id % 8);
             seen_nodes[n1_offset_id / 8] |= 1u8 << (n1_offset_id % 8);
 
@@ -170,6 +181,7 @@ impl Map {
                 predecessors.push((entry.travel[1], predecessor));
             }
             if current_node.is(end) {
+                eprintln!("we found it in {}", loop_count);
                 return path_length_vec(&current_node, &predecessors);
             }
 
@@ -179,6 +191,31 @@ impl Map {
                 distance: travel[1].squared_distance_to(end),
             }));
         }
+        let seen_nodes = predecessors
+            .into_iter()
+            .flat_map(|(a, b)| [a.node, b.node])
+            .collect::<Vec<_>>();
+        let min_distance = seen_nodes
+            .iter()
+            .map(|n| n.distance_to(&end.node))
+            .min_by(|d1, d2| d1.partial_cmp(d2).unwrap());
+        eprintln!(
+            "min distance is {:?} and we want < {}",
+            min_distance, TILE_BORDER_THICKNESS
+        );
+
+        save_svg(
+            "fail.svg",
+            self.bounding_box(),
+            [
+                self as SvgW,
+                &crate::svg::UniColorNodes(seen_nodes) as SvgW,
+                start as SvgW,
+                end as SvgW,
+            ],
+        )
+        .unwrap();
+
         0.
     }
 

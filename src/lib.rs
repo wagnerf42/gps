@@ -13,6 +13,8 @@ pub use map::Map;
 mod graph;
 mod svg;
 pub use svg::{save_svg, Svg, SvgW};
+mod gpx;
+pub use crate::gpx::convert_gpx;
 mod streets;
 
 pub type TileKey = (usize, usize);
