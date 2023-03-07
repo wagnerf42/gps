@@ -5,7 +5,7 @@ use xml::{reader::XmlEvent, EventReader};
 use crate::{Node, NodeId, WayId};
 
 pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Error>> {
-    let polygon_string: String = polygon.iter().flat_map(|n| [n.x, n.y]).join(" ");
+    let polygon_string: String = polygon.iter().flat_map(|n| [n.y, n.x]).join(" ");
     let query = format!(
         "(
         way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"](poly:\"{polygon_string}\");

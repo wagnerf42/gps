@@ -87,7 +87,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("retours_route.gpx".to_owned());
     let gpx_file = std::fs::File::open(gpx_filename)?;
     let gpx_reader = std::io::BufReader::new(gpx_file);
-    gps::convert_gpx(gpx_reader).await?;
+    let map = std::env::args()
+        .nth(2)
+        .and_then(|map_name| Map::load(map_name, SIDE).ok());
+    gps::convert_gpx(gpx_reader, map).await?;
     Ok(())
 }
 

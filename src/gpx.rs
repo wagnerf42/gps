@@ -6,7 +6,7 @@ use std::{
 use gpx::{read, Gpx};
 use itertools::Itertools;
 
-use crate::{request, save_svg, simplify::simplify_path, Node, Svg};
+use crate::{request, save_svg, simplify::simplify_path, Map, Node, Svg};
 
 const LOWER_SHARP_TURN: f64 = 80.0 * std::f64::consts::PI / 180.0;
 const UPPER_SHARP_TURN: f64 = std::f64::consts::PI * 2.0 - LOWER_SHARP_TURN;
@@ -69,7 +69,10 @@ fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
         });
 }
 
-pub async fn convert_gpx<R: Read>(input_reader: R) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn convert_gpx<R: Read>(
+    input_reader: R,
+    map: Option<Map>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // load all points composing the trace and mark commented points
     // as special waypoints.
     let (mut waypoints, p) = points(input_reader);
@@ -107,22 +110,24 @@ pub async fn convert_gpx<R: Read>(input_reader: R) -> Result<(), Box<dyn std::er
     };
     println!("we now have {} points", rp.len());
 
-    let path_polygon = build_polygon(&rp, 0.001); // 100m each side
+    let map = if let Some(map) = map {
+        map
+    } else {
+        let path_polygon = build_polygon(&rp, 0.001); // 100m each side
+        let osm_answer = request(&path_polygon).await?;
+        let mut writer = std::io::BufWriter::new(std::fs::File::create("testpathosm.txt")?);
+        writer.write_all(osm_answer.as_bytes())?;
+        Map::load(osm_answer, crate::map::SIDE)?
+    };
 
-    // let map = request(&path_polygon).await?;
-    let (xmin, xmax) = rp.iter().map(|n| n.x).minmax().into_option().unwrap();
-    let (ymin, ymax) = rp.iter().map(|n| n.y).minmax().into_option().unwrap();
-    save_svg(
-        "poly.svg",
-        (xmin, ymin, xmax, ymax),
+    crate::svg::save_svg(
+        "test.svg",
+        map.bounding_box(),
         [
+            &map as &dyn Svg<std::io::BufWriter<_>>,
             &vec![rp] as &dyn Svg<std::io::BufWriter<_>>,
-            &vec![path_polygon] as &dyn Svg<std::io::BufWriter<_>>,
         ],
-    )
-    .unwrap();
-    // let mut writer = std::io::BufWriter::new(std::fs::File::create("testpathosm.txt")?);
-    // writer.write_all(map.as_bytes())?;
+    )?;
 
     Ok(())
 }
