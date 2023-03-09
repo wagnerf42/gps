@@ -1,9 +1,6 @@
 use itertools::Itertools;
 use std::{collections::HashMap, io::Read, path::Path};
-use tokio::{
-    fs::File,
-    io::{AsyncWriteExt, BufWriter},
-};
+use tokio::io::AsyncWriteExt;
 
 pub const SIDE: f64 = 1. / 1000.; // excellent value
                                   // with it we have few segments crossing several squares
@@ -11,6 +8,11 @@ pub const SIDE: f64 = 1. / 1000.; // excellent value
                                   // for 1/2 meter precision
 
 use crate::{CNodeId, CWayId, Node, NodeId, TileKey, WayId};
+
+enum BlockType {
+    Tiles,
+    Streets,
+}
 
 pub struct Map {
     pub binary_ways: Vec<u8>,
@@ -22,8 +24,19 @@ pub struct Map {
     pub streets: HashMap<String, Vec<CWayId>>,
 }
 
+impl From<Vec<Node>> for Map {
+    fn from(mut nodes: Vec<Node>) -> Self {
+        let mut ways = vec![(0..nodes.len()).collect::<Vec<_>>()];
+        let mut streets = HashMap::new();
+        crate::cut_segments_on_tiles(&mut nodes, &mut ways, SIDE);
+        let ways = crate::cut_ways_into_edges(ways, &mut streets);
+        let tiles = crate::group_ways_in_tiles(&nodes, &ways, SIDE);
+        Map::new(&nodes, &ways, streets, &tiles, SIDE)
+    }
+}
+
 impl Map {
-    pub fn load<P: AsRef<Path>>(path: P, side: f64) -> std::io::Result<Self> {
+    pub fn load<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let mut answer = Vec::new();
         std::io::BufReader::new(std::fs::File::open(path.as_ref())?).read_to_end(&mut answer)?;
         let (nodes, mut ways, mut streets) =
@@ -31,10 +44,10 @@ impl Map {
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
         crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
-        crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
+        crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
-        let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, side);
-        Ok(Map::new(&renamed_nodes, &ways, streets, &tiles, side))
+        let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
+        Ok(Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE))
     }
     pub fn new(
         nodes: &[Node],
@@ -105,8 +118,14 @@ impl Map {
         }
     }
 
-    pub async fn save<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        let mut writer = BufWriter::new(File::create(path).await?);
+    pub async fn save_tiles<W: AsyncWriteExt + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+        color: &[u8; 3],
+    ) -> std::io::Result<()> {
+        writer.write_u8(BlockType::Tiles as u8).await?;
+        writer.write_all(color).await?;
+
         // first, the header
         writer
             .write_all(&(self.first_tile.0 as u32).to_le_bytes())
@@ -136,6 +155,14 @@ impl Map {
 
         // now, all tiled ways ; size is last element of sizes_prefix
         writer.write_all(&self.binary_ways).await?;
+        Ok(())
+    }
+
+    pub async fn save_streets<W: AsyncWriteExt + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> std::io::Result<()> {
+        writer.write_u8(BlockType::Streets as u8).await?;
 
         // finally, write all streets data
         let encoded = crate::streets::encode_streets(&self.streets);

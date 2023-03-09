@@ -5,6 +5,7 @@ use std::{
 
 use gpx::{read, Gpx};
 use itertools::Itertools;
+use tokio::io::AsyncWriteExt;
 
 use crate::{request, save_svg, simplify::simplify_path, Map, Node, Svg};
 
@@ -69,9 +70,10 @@ fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
         });
 }
 
-pub async fn convert_gpx<R: Read>(
+pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     input_reader: R,
     map: Option<Map>,
+    writer: &mut W,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // load all points composing the trace and mark commented points
     // as special waypoints.
@@ -117,17 +119,12 @@ pub async fn convert_gpx<R: Read>(
         let osm_answer = request(&path_polygon).await?;
         let mut writer = std::io::BufWriter::new(std::fs::File::create("testpathosm.txt")?);
         writer.write_all(osm_answer.as_bytes())?;
-        Map::load(osm_answer, crate::map::SIDE)?
+        Map::load(osm_answer)?
     };
 
-    crate::svg::save_svg(
-        "test.svg",
-        map.bounding_box(),
-        [
-            &map as &dyn Svg<std::io::BufWriter<_>>,
-            &vec![rp] as &dyn Svg<std::io::BufWriter<_>>,
-        ],
-    )?;
+    let path: Map = rp.into();
+    path.save_tiles(writer, &[255, 0, 0]).await?;
+    map.save_tiles(writer, &[0, 0, 0]).await?;
 
     Ok(())
 }
