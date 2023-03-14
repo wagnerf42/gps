@@ -9,9 +9,10 @@ pub const SIDE: f64 = 1. / 1000.; // excellent value
 
 use crate::{CNodeId, CWayId, Node, NodeId, TileKey, WayId};
 
-enum BlockType {
+pub(crate) enum BlockType {
     Tiles,
     Streets,
+    Path,
 }
 
 pub struct Map {

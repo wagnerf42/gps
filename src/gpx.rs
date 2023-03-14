@@ -122,10 +122,38 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
         Map::load(osm_answer)?
     };
 
+    save_path(&rp, &waypoints, writer).await?;
     let path: Map = rp.into();
     path.save_tiles(writer, &[255, 0, 0]).await?;
     map.save_tiles(writer, &[0, 0, 0]).await?;
 
+    Ok(())
+}
+
+pub async fn save_path<W: AsyncWriteExt + std::marker::Unpin>(
+    points: &[Node],
+    waypoints: &HashSet<Node>,
+    writer: &mut W,
+) -> std::io::Result<()> {
+    writer.write_u8(crate::map::BlockType::Path as u8).await?;
+    writer
+        .write_all(&(points.len() as u16).to_le_bytes())
+        .await?;
+    for coordinates in points.iter().flat_map(|p| [p.x, p.y]) {
+        writer.write_all(&coordinates.to_le_bytes()).await?;
+    }
+
+    let mut waypoints_bits = std::iter::repeat(0u8)
+        .take(points.len() / 8 + if points.len() % 8 != 0 { 1 } else { 0 })
+        .collect::<Vec<u8>>();
+    points.iter().enumerate().for_each(|(i, p)| {
+        if waypoints.contains(p) {
+            waypoints_bits[i / 8] |= 1 << (i % 8)
+        }
+    });
+    for byte in &waypoints_bits {
+        writer.write_all(&byte.to_le_bytes()).await?;
+    }
     Ok(())
 }
 
