@@ -1,4 +1,5 @@
 use gps::Map;
+use tokio::io::AsyncWriteExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,5 +13,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|map_name| Map::load(map_name).ok());
     let mut writer = tokio::io::BufWriter::new(tokio::fs::File::create("out.gps").await?);
     gps::convert_gpx(gpx_reader, map_data, &mut writer).await?;
+    writer.flush().await?;
     Ok(())
 }
