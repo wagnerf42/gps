@@ -148,14 +148,38 @@ impl Map {
             .await?;
         writer.write_all(&self.side.to_le_bytes()).await?;
 
-        // now the tiles sizes, encoded on 24 bytes
-        for s in &self.tiles_sizes_prefix {
-            assert!(*s <= 1 << 24);
-            writer.write_all(&(*s as u32).to_le_bytes()[0..3]).await?;
-        }
+        self.save_sizes_prefix(writer).await?;
+        // for s in &self.tiles_sizes_prefix {
+        //     assert!(*s <= 1 << 24);
+        //     writer.write_all(&(*s as u32).to_le_bytes()[0..3]).await?;
+        // }
 
         // now, all tiled ways ; size is last element of sizes_prefix
         writer.write_all(&self.binary_ways).await?;
+        Ok(())
+    }
+
+    pub async fn save_sizes_prefix<W: AsyncWriteExt + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> std::io::Result<()> {
+        let non_empty_tiles = std::iter::once([0, self.tiles_sizes_prefix[0]].as_slice())
+            .chain(self.tiles_sizes_prefix.windows(2))
+            .enumerate()
+            .filter_map(|(i, w)| if w[0] != w[1] { Some(i as u16) } else { None })
+            .collect::<Vec<u16>>();
+        writer
+            .write_all(&(non_empty_tiles.len() as u16).to_le_bytes())
+            .await?;
+        for tile in &non_empty_tiles {
+            writer.write_all(&tile.to_le_bytes()).await?;
+        }
+        for end in non_empty_tiles
+            .iter()
+            .map(|tile_index| self.tiles_sizes_prefix[*tile_index as usize])
+        {
+            writer.write_all(&end.to_le_bytes()[0..3]).await?;
+        }
         Ok(())
     }
 
