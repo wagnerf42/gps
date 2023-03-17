@@ -40,15 +40,18 @@ impl Map {
     pub fn load<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let mut answer = Vec::new();
         std::io::BufReader::new(std::fs::File::open(path.as_ref())?).read_to_end(&mut answer)?;
-        let (nodes, mut ways, mut streets) =
-            crate::parse_osm_xml(std::str::from_utf8(&answer).unwrap());
+        let string = std::str::from_utf8(&answer).unwrap();
+        Ok(Map::from_string(string))
+    }
+    pub fn from_string(s: &str) -> Self {
+        let (nodes, mut ways, mut streets) = crate::parse_osm_xml(s);
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
         crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
         crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
         let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
-        Ok(Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE))
+        Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE)
     }
     pub fn new(
         nodes: &[Node],
