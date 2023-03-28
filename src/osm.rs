@@ -4,12 +4,20 @@ use xml::{reader::XmlEvent, EventReader};
 
 use crate::{Node, NodeId, WayId};
 
-pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn request(
+    polygon: &[Node],
+    key_values: &[(String, String)],
+) -> Result<String, Box<dyn std::error::Error>> {
     let polygon_string: String = polygon.iter().flat_map(|n| [n.y, n.x]).join(" ");
+    let key_values_request: String = key_values
+        .iter()
+        .map(|(key, value)| format!("node[\"{key}\"=\"{value}\"]"))
+        .collect();
     let query = format!(
         "(
         way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"](poly:\"{polygon_string}\");
         >;
+        {key_values_request}(poly:\"{polygon_string}\");
         );
         out body;",
     );
@@ -30,17 +38,26 @@ pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Err
 // and a hash map street name -> Vec of ways ids
 pub fn parse_osm_xml(
     xml: &str,
+    key_values: &[(String, String)],
 ) -> (
     HashMap<NodeId, Node>,
     HashMap<WayId, Vec<NodeId>>,
     HashMap<String, Vec<WayId>>,
+    Vec<(usize, Node)>, // interests (type + node)
 ) {
+    let key_values: HashMap<(&String, &String), usize> = key_values
+        .iter()
+        .enumerate()
+        .map(|(i, (key, value))| ((key, value), i))
+        .collect();
     let parser = EventReader::new(xml.as_bytes());
     let mut current_node = None;
     let mut current_way: Option<(usize, Vec<usize>)> = None;
     let mut nodes = HashMap::new();
     let mut ways = HashMap::new();
     let mut streets: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut interests = Vec::new();
+    let mut current_interest = None;
     for e in parser {
         match e {
             Ok(XmlEvent::StartElement {
@@ -56,17 +73,26 @@ pub fn parse_osm_xml(
                     })
                 }
                 if name.local_name == "tag" {
-                    let mut named = false;
-                    let mut name = None;
+                    let mut key = None;
+                    let mut value = None;
                     for attribute in &attributes {
-                        if attribute.name.local_name == "k" && attribute.value == "name" {
-                            named = true;
+                        if attribute.name.local_name == "k" {
+                            key = Some(&attribute.value)
                         } else if attribute.name.local_name == "v" {
-                            name = Some(&attribute.value)
+                            value = Some(&attribute.value)
                         }
                     }
-                    if named {
-                        if let Some(street_name) = name {
+
+                    if let Some(key) = key {
+                        if let Some(value) = value {
+                            if let Some(interest_id) = key_values.get(&(key, value)) {
+                                current_interest = Some(*interest_id);
+                            }
+                        }
+                    }
+
+                    if key == Some(&"name".to_owned()) {
+                        if let Some(street_name) = value {
                             if let Some((way, _)) = current_way.as_ref() {
                                 streets
                                     .entry(street_name.to_owned())
@@ -88,6 +114,7 @@ pub fn parse_osm_xml(
                     }
                 }
                 if name.local_name == "node" {
+                    current_interest = None;
                     let mut lon = None;
                     let mut lat = None;
                     let mut id = None;
@@ -118,6 +145,9 @@ pub fn parse_osm_xml(
                 if name.local_name == "node" {
                     if let Some((id, node)) = current_node.take() {
                         nodes.insert(id, node);
+                        if let Some(interest) = current_interest {
+                            interests.push((interest, node));
+                        }
                     }
                 }
             }
@@ -128,5 +158,5 @@ pub fn parse_osm_xml(
             _ => {}
         }
     }
-    (nodes, ways, streets)
+    (nodes, ways, streets, interests)
 }

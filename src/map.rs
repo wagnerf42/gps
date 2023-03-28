@@ -23,6 +23,7 @@ pub struct Map {
     pub grid_size: (usize, usize),
     pub side: f64,
     pub streets: HashMap<String, Vec<CWayId>>,
+    pub interests: Vec<(usize, Node)>,
 }
 
 impl From<Vec<Node>> for Map {
@@ -32,32 +33,33 @@ impl From<Vec<Node>> for Map {
         crate::cut_segments_on_tiles(&mut nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
         let tiles = crate::group_ways_in_tiles(&nodes, &ways, SIDE);
-        Map::new(&nodes, &ways, streets, &tiles, SIDE)
+        Map::new(&nodes, &ways, streets, &tiles, Vec::new(), SIDE)
     }
 }
 
 impl Map {
-    pub fn load<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+    pub fn load<P: AsRef<Path>>(path: P, key_values: &[(String, String)]) -> std::io::Result<Self> {
         let mut answer = Vec::new();
         std::io::BufReader::new(std::fs::File::open(path.as_ref())?).read_to_end(&mut answer)?;
         let string = std::str::from_utf8(&answer).unwrap();
-        Ok(Map::from_string(string))
+        Ok(Map::from_string(string, key_values))
     }
-    pub fn from_string(s: &str) -> Self {
-        let (nodes, mut ways, mut streets) = crate::parse_osm_xml(s);
+    pub fn from_string(s: &str, key_values: &[(String, String)]) -> Self {
+        let (nodes, mut ways, mut streets, interests) = crate::parse_osm_xml(s, key_values);
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
         crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
         crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
         let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
-        Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE)
+        Map::new(&renamed_nodes, &ways, streets, &tiles, interests, SIDE)
     }
     pub fn new(
         nodes: &[Node],
         ways: &[[NodeId; 2]],
         streets: HashMap<String, Vec<WayId>>,
         tiles: &HashMap<TileKey, Vec<WayId>>,
+        interests: Vec<(usize, Node)>,
         side: f64,
     ) -> Self {
         let mut binary_ways = Vec::new();
@@ -119,6 +121,7 @@ impl Map {
             grid_size: ((xmax + 1 - xmin), (ymax + 1 - ymin)),
             side,
             streets: new_streets,
+            interests,
         }
     }
 
