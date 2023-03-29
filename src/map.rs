@@ -172,7 +172,10 @@ impl Map {
         writer: &mut W,
     ) -> std::io::Result<()> {
         writer.write_u8(BlockType::Interests as u8).await?;
-        writer.write_u16(self.interests.len() as u16).await?;
+        eprintln!("interests number: {}", self.interests.len());
+        writer
+            .write_all(&(self.interests.len() as u16).to_le_bytes())
+            .await?;
         for (interest, _) in &self.interests {
             writer.write_u8(*interest as u8).await?;
         }
