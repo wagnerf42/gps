@@ -132,6 +132,7 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     // let path: Map = rp.into();
     // path.save_tiles(writer, &[255, 0, 0]).await?;
     map.save_tiles(writer, &[0, 0, 0]).await?;
+    map.save_interests(writer).await?;
     eprintln!("all is saved");
 
     Ok(())

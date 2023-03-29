@@ -13,6 +13,7 @@ pub(crate) enum BlockType {
     Tiles,
     Streets,
     Path,
+    Interests,
 }
 
 pub struct Map {
@@ -45,7 +46,8 @@ impl Map {
         Ok(Map::from_string(string, key_values))
     }
     pub fn from_string(s: &str, key_values: &[(String, String)]) -> Self {
-        let (nodes, mut ways, mut streets, interests) = crate::parse_osm_xml(s, key_values);
+        let (nodes, mut ways, mut streets, mut interests) = crate::parse_osm_xml(s, key_values);
+        interests.sort_unstable_by(|(_, n1), (_, n2)| n1.x.partial_cmp(&n2.x).unwrap());
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
         crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
@@ -162,6 +164,22 @@ impl Map {
 
         // now, all tiled ways ; size is last element of sizes_prefix
         writer.write_all(&self.binary_ways).await?;
+        Ok(())
+    }
+
+    pub async fn save_interests<W: AsyncWriteExt + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> std::io::Result<()> {
+        writer.write_u8(BlockType::Interests as u8).await?;
+        writer.write_u16(self.interests.len() as u16).await?;
+        for (interest, _) in &self.interests {
+            writer.write_u8(*interest as u8).await?;
+        }
+        for (_, node) in &self.interests {
+            writer.write_f64(node.x).await?;
+            writer.write_f64(node.y).await?;
+        }
         Ok(())
     }
 
