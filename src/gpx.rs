@@ -126,13 +126,14 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
         Map::from_string(&osm_answer, key_values)
     };
 
+    eprintln!("saving interests");
+    map.save_interests(writer).await?;
     eprintln!("saving the path");
     save_path(&rp, &waypoints, writer).await?;
     eprintln!("saving the maptiles");
     // let path: Map = rp.into();
     // path.save_tiles(writer, &[255, 0, 0]).await?;
     map.save_tiles(writer, &[0, 0, 0]).await?;
-    map.save_interests(writer).await?;
     eprintln!("all is saved");
 
     Ok(())

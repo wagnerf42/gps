@@ -180,8 +180,8 @@ impl Map {
             writer.write_u8(*interest as u8).await?;
         }
         for (_, node) in &self.interests {
-            writer.write_f64(node.x).await?;
-            writer.write_f64(node.y).await?;
+            writer.write_all(&node.x.to_le_bytes()).await?;
+            writer.write_all(&node.y.to_le_bytes()).await?;
         }
         Ok(())
     }
