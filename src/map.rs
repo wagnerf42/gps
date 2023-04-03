@@ -50,7 +50,7 @@ impl Map {
         interests.sort_unstable_by(|(_, n1), (_, n2)| n1.x.partial_cmp(&n2.x).unwrap());
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
-        crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
+        // crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
         crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
         let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);

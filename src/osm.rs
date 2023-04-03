@@ -58,12 +58,19 @@ pub fn parse_osm_xml(
     let mut streets: HashMap<String, Vec<usize>> = HashMap::new();
     let mut interests = Vec::new();
     let mut current_interest = None;
+    let mut footway = false;
+    let mut bicycle = false;
+    let mut discard_way = false;
+    let mut current_street_name = None;
     for e in parser {
         match e {
             Ok(XmlEvent::StartElement {
                 name, attributes, ..
             }) => {
                 if name.local_name == "way" {
+                    footway = false;
+                    bicycle = false;
+                    discard_way = false;
                     current_way = attributes.iter().find_map(|a| {
                         if a.name.local_name == "id" {
                             a.value.parse::<usize>().ok().map(|id| (id, Vec::new()))
@@ -85,6 +92,15 @@ pub fn parse_osm_xml(
 
                     if let Some(key) = key {
                         if let Some(value) = value {
+                            if key == "bicycle" && value == "yes" {
+                                bicycle = true;
+                            }
+                            if key == "highway" && value == "footway" {
+                                footway = true;
+                            }
+                            if key == "highway" && value == "raceway" {
+                                discard_way = true;
+                            }
                             if let Some(interest_id) = key_values.get(&(key, value)) {
                                 current_interest = Some(*interest_id);
                             }
@@ -92,14 +108,7 @@ pub fn parse_osm_xml(
                     }
 
                     if key == Some(&"name".to_owned()) {
-                        if let Some(street_name) = value {
-                            if let Some((way, _)) = current_way.as_ref() {
-                                streets
-                                    .entry(street_name.to_owned())
-                                    .or_default()
-                                    .push(*way)
-                            }
-                        }
+                        current_street_name = value.map(|s| s.to_owned());
                     }
                 }
                 if name.local_name == "nd" {
@@ -139,7 +148,13 @@ pub fn parse_osm_xml(
             Ok(XmlEvent::EndElement { name }) => {
                 if name.local_name == "way" {
                     if let Some((id, way_points)) = current_way.take() {
-                        ways.insert(id, way_points);
+                        if !discard_way && (!footway || bicycle) {
+                            ways.insert(id, way_points);
+
+                            if let Some(street_name) = current_street_name.take() {
+                                streets.entry(street_name.to_owned()).or_default().push(id)
+                            }
+                        }
                     }
                 }
                 if name.local_name == "node" {

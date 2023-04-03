@@ -7,7 +7,7 @@ use gpx::{read, Gpx};
 use itertools::Itertools;
 use tokio::io::AsyncWriteExt;
 
-use crate::{request, save_svg, simplify::simplify_path, Map, Node, Svg};
+use crate::{request, save_svg, simplify::simplify_path, Map, Node, Svg, SvgW};
 
 const LOWER_SHARP_TURN: f64 = 80.0 * std::f64::consts::PI / 180.0;
 const UPPER_SHARP_TURN: f64 = std::f64::consts::PI * 2.0 - LOWER_SHARP_TURN;
@@ -125,6 +125,13 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
         eprintln!("we saved the map");
         Map::from_string(&osm_answer, key_values)
     };
+
+    save_svg(
+        "map.svg",
+        map.bounding_box(),
+        [&map as SvgW, (&rp.as_slice()) as SvgW],
+    )
+    .unwrap();
 
     eprintln!("saving interests");
     map.save_interests(writer).await?;
