@@ -7,7 +7,12 @@ use gpx::{read, Gpx};
 use itertools::Itertools;
 use tokio::io::AsyncWriteExt;
 
-use crate::{request, save_svg, simplify::simplify_path, Map, Node, Svg, SvgW};
+use crate::{
+    request, save_svg,
+    simplify::simplify_path,
+    svg::{MapTiles, UniColorNodes},
+    Map, Node, Svg, SvgW,
+};
 
 const LOWER_SHARP_TURN: f64 = 80.0 * std::f64::consts::PI / 180.0;
 const UPPER_SHARP_TURN: f64 = std::f64::consts::PI * 2.0 - LOWER_SHARP_TURN;
@@ -72,7 +77,7 @@ fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
 
 pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     input_reader: R,
-    map: Option<Map>,
+    map_name: Option<String>,
     key_values: &[(String, String)],
     writer: &mut W,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -113,23 +118,58 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     };
     println!("we now have {} points", rp.len());
 
-    let map = if let Some(map) = map {
-        map
-    } else {
-        eprintln!("requesting map");
-        let path_polygon = build_polygon(&rp, 0.001); // 100m each side
-        let osm_answer = request(&path_polygon, key_values).await?;
-        eprintln!("we got the map, saving it");
-        let mut writer = std::io::BufWriter::new(std::fs::File::create("testpathosm.txt")?);
-        writer.write_all(osm_answer.as_bytes())?;
-        eprintln!("we saved the map");
-        Map::from_string(&osm_answer, key_values)
-    };
+    let mut map =
+        if let Some(map) = map_name.and_then(|map_name| Map::load(map_name, &key_values).ok()) {
+            map
+        } else {
+            eprintln!("requesting map");
+            let path_polygon = build_polygon(&rp, 0.001); // 100m each side
+            let osm_answer = request(&path_polygon, key_values).await?;
+            eprintln!("we got the map, saving it");
+            let mut writer = std::io::BufWriter::new(std::fs::File::create("testpathosm.txt")?);
+            writer.write_all(osm_answer.as_bytes())?;
+            eprintln!("we saved the map");
+            Map::from_string(&osm_answer, key_values)
+        };
 
+    let path_map: Map = rp.clone().into();
+    let extended_path_tiles = path_map
+        .non_empty_tiles()
+        .map(|(x, y)| {
+            (
+                x + path_map.first_tile.0 - map.first_tile.0,
+                y + path_map.first_tile.1 - map.first_tile.1,
+            )
+        })
+        .flat_map(|(x, y)| {
+            (x.saturating_sub(1)..(x + 2))
+                .flat_map(move |nx| (y.saturating_sub(1)..(y + 2)).map(move |ny| (nx, ny)))
+        })
+        .collect::<HashSet<(usize, usize)>>();
+
+    map.keep_tiles(&extended_path_tiles);
+
+    let interests_nodes = UniColorNodes(
+        map.interests
+            .iter()
+            .map(|(_, n)| n)
+            .cloned()
+            .collect::<Vec<_>>(),
+    );
+
+    let maptiles = MapTiles {
+        tiles: &extended_path_tiles,
+        map: &map,
+    };
     save_svg(
         "map.svg",
         map.bounding_box(),
-        [&map as SvgW, (&rp.as_slice()) as SvgW],
+        [
+            &map as SvgW,
+            (&rp.as_slice()) as SvgW,
+            &interests_nodes as SvgW,
+            &maptiles as SvgW,
+        ],
     )
     .unwrap();
 

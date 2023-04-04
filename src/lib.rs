@@ -21,7 +21,7 @@ pub type TileKey = (usize, usize);
 pub type WayId = usize;
 pub type NodeId = usize;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct CWayId {
     pub(crate) tile_number: u16,
     pub(crate) local_way_id: u8,

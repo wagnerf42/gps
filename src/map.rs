@@ -1,5 +1,9 @@
 use itertools::Itertools;
-use std::{collections::HashMap, io::Read, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Read,
+    path::Path,
+};
 use tokio::io::AsyncWriteExt;
 
 pub const SIDE: f64 = 1. / 1000.; // excellent value
@@ -50,7 +54,7 @@ impl Map {
         interests.sort_unstable_by(|(_, n1), (_, n2)| n1.x.partial_cmp(&n2.x).unwrap());
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
-        // crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
+        crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
         crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
         let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
@@ -125,6 +129,16 @@ impl Map {
             streets: new_streets,
             interests,
         }
+    }
+
+    pub fn non_empty_tiles(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        (0..self.grid_size.0).flat_map(|tile_x| {
+            (0..self.grid_size.1)
+                .map(move |tile_y| (tile_x, tile_y))
+                .filter(|(tile_x, tile_y)| {
+                    self.tile_ways_number((tile_x + tile_y * self.grid_size.0) as u16) > 0
+                })
+        })
     }
 
     pub async fn save_tiles<W: AsyncWriteExt + std::marker::Unpin>(
@@ -351,6 +365,38 @@ impl Map {
         let offset = tile_offset + 2 * id.local_node_id as usize;
         assert!(offset % 2 == 0);
         offset / 2
+    }
+
+    // discard all tiles which are not the ones we want.
+    pub(crate) fn keep_tiles(&mut self, kept_tiles: &HashSet<(usize, usize)>) {
+        let mut new_binary_ways: Vec<u8> = Vec::new();
+        let mut new_tiles_sizes_prefix = Vec::new();
+        let mut kept_ways = HashSet::new();
+        let mut current_end = 0;
+        for (tile_number, (tile_start, tile_end)) in std::iter::once(0)
+            .chain(self.tiles_sizes_prefix.iter().copied())
+            .tuple_windows()
+            .enumerate()
+        {
+            let tile_x = tile_number % self.grid_size.0;
+            let tile_y = tile_number / self.grid_size.0;
+            if kept_tiles.contains(&(tile_x, tile_y)) {
+                new_binary_ways.extend(&self.binary_ways[tile_start..tile_end]);
+                kept_ways.extend((0..(tile_end - tile_start) / 2).map(|local_way_id| CWayId {
+                    tile_number: tile_number as u16,
+                    local_way_id: local_way_id as u8,
+                }));
+                current_end += tile_end - tile_start;
+            }
+            new_tiles_sizes_prefix.push(current_end);
+        }
+        self.binary_ways = new_binary_ways;
+        self.tiles_sizes_prefix = new_tiles_sizes_prefix;
+        // now filter streets
+        self.streets.retain(|_, street_ways| {
+            street_ways.retain(|way_id| kept_ways.contains(way_id));
+            !street_ways.is_empty()
+        });
     }
 }
 

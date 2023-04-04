@@ -1,5 +1,5 @@
-use std::io::Write;
 use std::path::Path;
+use std::{collections::HashSet, io::Write};
 
 use itertools::Itertools;
 
@@ -82,6 +82,26 @@ impl<W: Write> Svg<W> for Map {
 
         self.ways()
             .try_for_each(|w| w.as_slice().write_svg(writer, color))
+    }
+}
+
+pub(crate) struct MapTiles<'a> {
+    pub tiles: &'a HashSet<(usize, usize)>,
+    pub map: &'a Map,
+}
+
+impl<'a, W: Write> Svg<W> for MapTiles<'a> {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        for (tile_x, tile_y) in self.tiles {
+            let x = (self.map.first_tile.0 + tile_x) as f64 * self.map.side;
+            let y = (self.map.first_tile.1 + tile_y) as f64 * self.map.side;
+            writeln!(
+                writer,
+                "<rect x='{x}' y='{y}' width='{}' height='{}' opacity='0.5' fill='{color}'/>",
+                self.map.side, self.map.side,
+            )?;
+        }
+        Ok(())
     }
 }
 

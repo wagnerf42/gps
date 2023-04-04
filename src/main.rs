@@ -21,11 +21,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let map_data = std::env::args()
-        .nth(2)
-        .and_then(|map_name| Map::load(map_name, &key_values).ok());
+    let map_name = std::env::args().nth(2);
     let mut writer = tokio::io::BufWriter::new(tokio::fs::File::create("out.gps").await?);
-    gps::convert_gpx(gpx_reader, map_data, &key_values, &mut writer).await?;
+    gps::convert_gpx(gpx_reader, map_name, &key_values, &mut writer).await?;
     writer.flush().await?;
     Ok(())
 }
