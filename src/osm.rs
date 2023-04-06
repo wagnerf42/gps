@@ -98,7 +98,7 @@ pub fn parse_osm_xml(
                             if key == "highway" && value == "footway" {
                                 footway = true;
                             }
-                            if key == "highway" && value == "raceway" {
+                            if key == "highway" && (value == "raceway" || value == "steps") {
                                 discard_way = true;
                             }
                             if let Some(interest_id) = key_values.get(&(key, value)) {
