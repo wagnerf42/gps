@@ -4,20 +4,13 @@ use xml::{reader::XmlEvent, EventReader};
 
 use crate::{Node, NodeId, WayId};
 
-pub async fn request(
-    polygon: &[Node],
-    key_values: &[(String, String)],
-) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Error>> {
     let polygon_string: String = polygon.iter().flat_map(|n| [n.y, n.x]).join(" ");
-    let key_values_request: String = key_values
-        .iter()
-        .map(|(key, value)| format!("node[\"{key}\"=\"{value}\"]"))
-        .collect();
     let query = format!(
         "(
         way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"](poly:\"{polygon_string}\");
         >;
-        {key_values_request}(poly:\"{polygon_string}\");
+        node(poly:\"{polygon_string}\");
         );
         out body;",
     );
