@@ -8,6 +8,7 @@ use itertools::Itertools;
 use tokio::io::AsyncWriteExt;
 
 use crate::{
+    map::SIDE,
     request, save_svg,
     simplify::simplify_path,
     svg::{MapTiles, UniColorNodes},
@@ -118,19 +119,23 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     };
     println!("we now have {} points", rp.len());
 
-    let mut map =
-        if let Some(map) = map_name.and_then(|map_name| Map::load(map_name, &key_values).ok()) {
-            map
-        } else {
-            eprintln!("requesting map");
-            let path_polygon = build_polygon(&rp, 0.001); // 100m each side
-            let osm_answer = request(&path_polygon, key_values).await?;
-            eprintln!("we got the map, saving it");
-            let mut writer = std::io::BufWriter::new(std::fs::File::create("testpathosm.txt")?);
-            writer.write_all(osm_answer.as_bytes())?;
-            eprintln!("we saved the map");
-            Map::from_string(&osm_answer, key_values)
-        };
+    let mut map = if let Some(map) = map_name
+        .as_ref()
+        .and_then(|map_name| Map::load(map_name, &key_values).ok())
+    {
+        map
+    } else {
+        eprintln!("requesting map");
+        let path_polygon = build_polygon(&rp, SIDE * 2.); // two tiles on each side
+        let osm_answer = request(&path_polygon, key_values).await?;
+        eprintln!("we got the map, saving it");
+        let mut writer = std::io::BufWriter::new(std::fs::File::create(
+            map_name.unwrap_or("default.map".to_owned()),
+        )?);
+        writer.write_all(osm_answer.as_bytes())?;
+        eprintln!("we saved the map");
+        Map::from_string(&osm_answer, key_values)
+    };
 
     let path_map: Map = rp.clone().into();
     let extended_path_tiles = path_map
