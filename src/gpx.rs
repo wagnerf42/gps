@@ -221,10 +221,12 @@ pub async fn save_path<W: AsyncWriteExt + std::marker::Unpin>(
 // inflate a polygon around given path
 fn build_polygon(path: &[Node], thickness: f64) -> Vec<Node> {
     path.windows(2)
+        .filter(|w| w[0] != w[1])
         .flat_map(|segment| parallel_segment(segment.iter(), thickness))
         .chain(
             path.windows(2)
                 .rev()
+                .filter(|w| w[0] != w[1])
                 .flat_map(|segment| parallel_segment(segment.iter().rev(), thickness)),
         )
         .dedup()
@@ -240,6 +242,8 @@ fn parallel_segment<'a, I: Iterator<Item = &'a Node>>(mut segment: I, thickness:
     let d = (xdiff * xdiff + ydiff * ydiff).sqrt();
     let x = (-ydiff / d) * thickness;
     let y = (xdiff / d) * thickness;
+    assert!(!x.is_nan());
+    assert!(!y.is_nan());
     [
         Node::new(start.x + x, start.y + y),
         Node::new(end.x + x, end.y + y),

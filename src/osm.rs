@@ -5,7 +5,11 @@ use xml::{reader::XmlEvent, EventReader};
 use crate::{Node, NodeId, WayId};
 
 pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Error>> {
-    let polygon_string: String = polygon.iter().flat_map(|n| [n.y, n.x]).join(" ");
+    let polygon_string: String = polygon
+        .iter()
+        .flat_map(|n| [n.y, n.x])
+        .inspect(|c| assert!(!c.is_nan()))
+        .join(" ");
     let query = format!(
         "(
         way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"](poly:\"{polygon_string}\");
@@ -14,6 +18,7 @@ pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Err
         );
         out body;",
     );
+    eprintln!("request: {polygon_string:?}");
     let client = reqwest::Client::builder()
         //.user_agent("osm-geo-mapper")
         .build()?;
