@@ -46,7 +46,7 @@ pub fn parse_osm_xml(
     let key_values: HashMap<(&String, &String), usize> = key_values
         .iter()
         .enumerate()
-        .map(|(i, (key, value))| ((key, value), i))
+        .map(|(i, (key, value))| ((key, value), i + 1))
         .collect();
     let parser = EventReader::new(xml.as_bytes());
     let mut current_node = None;

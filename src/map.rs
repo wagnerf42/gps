@@ -6,10 +6,10 @@ use std::{
 };
 use tokio::io::AsyncWriteExt;
 
-pub const SIDE: f64 = 1. / 1000.; // excellent value
-                                  // with it we have few segments crossing several squares
-                                  // and what's more we can use 1 byte for each coordinate inside the square
-                                  // for 1/2 meter precision
+pub const SIDE: f64 = 1. / 500.; // excellent value
+                                 // with it we have few segments crossing several squares
+                                 // and what's more we can use 1 byte for each coordinate inside the square
+                                 // for 1 meter precision
 
 use crate::{CNodeId, CWayId, Node, NodeId, TileKey, WayId};
 
@@ -59,6 +59,11 @@ impl Map {
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
         let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
         Map::new(&renamed_nodes, &ways, streets, &tiles, interests, SIDE)
+    }
+    pub fn add_interests(&mut self, interests: impl Iterator<Item = (usize, Node)>) {
+        self.interests.extend(interests);
+        self.interests
+            .sort_unstable_by(|(_, n1), (_, n2)| n1.x.partial_cmp(&n2.x).unwrap());
     }
     pub fn new(
         nodes: &[Node],
