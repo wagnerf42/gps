@@ -180,7 +180,7 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
 
     map.add_interests(std::iter::repeat(0).zip(waypoints.iter().copied()));
     eprintln!("saving interests");
-    map.save_interests(writer).await?;
+    map.save_tiled_interests(writer).await?;
     eprintln!("saving the path");
     save_path(&rp, &waypoints, writer).await?;
     eprintln!("saving the pathtiles");

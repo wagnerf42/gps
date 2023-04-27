@@ -51,7 +51,6 @@ impl Map {
     }
     pub fn from_string(s: &str, key_values: &[(String, String)]) -> Self {
         let (nodes, mut ways, mut streets, mut interests) = crate::parse_osm_xml(s, key_values);
-        interests.sort_unstable_by(|(_, n1), (_, n2)| n1.x.partial_cmp(&n2.x).unwrap());
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
         crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
@@ -62,8 +61,6 @@ impl Map {
     }
     pub fn add_interests(&mut self, interests: impl Iterator<Item = (usize, Node)>) {
         self.interests.extend(interests);
-        self.interests
-            .sort_unstable_by(|(_, n1), (_, n2)| n1.x.partial_cmp(&n2.x).unwrap());
     }
     pub fn new(
         nodes: &[Node],
@@ -186,6 +183,54 @@ impl Map {
         Ok(())
     }
 
+    pub async fn save_tiled_interests<W: AsyncWriteExt + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> std::io::Result<()> {
+        let mut tiled_interests: HashMap<u16, Vec<(usize, Node)>> = HashMap::new();
+        for (tile, interest) in self.interests.iter().map(|(interest_type, interest_node)| {
+            (
+                interest_node
+                    .tiles(self.side)
+                    .map(|(tx, ty)| (tx - self.first_tile.0, ty - self.first_tile.1))
+                    .map(|(tx, ty)| (tx + ty * self.grid_size.0) as u16)
+                    .next() // first tile is enough for interests
+                    .unwrap(),
+                (*interest_type, *interest_node),
+            )
+        }) {
+            tiled_interests.entry(tile).or_default().push(interest);
+        }
+        let mut non_empty_tiles = tiled_interests.keys().collect::<Vec<_>>();
+        non_empty_tiles.sort_unstable();
+
+        writer.write_u8(BlockType::Interests as u8).await?;
+        //TODO: factorize with save_sizes_prefix
+        writer.write_u8(16).await?;
+        writer.write_u8(17).await?; // size taken by each interest
+        writer
+            .write_all(&(non_empty_tiles.len() as u16).to_le_bytes())
+            .await?;
+        for tile in &non_empty_tiles {
+            writer.write_all(&tile.to_le_bytes()).await?;
+        }
+        for end in non_empty_tiles.iter().scan(0u16, |previous_end, tile_id| {
+            let tile_size = tiled_interests[tile_id].len() as u16;
+            *previous_end += tile_size;
+            Some(*previous_end)
+        }) {
+            writer.write_all(&end.to_le_bytes()).await?;
+        }
+        for tile in &non_empty_tiles {
+            for (interest_type, interest_node) in &tiled_interests[tile] {
+                writer.write_u8(*interest_type as u8).await?;
+                writer.write_all(&interest_node.x.to_le_bytes()).await?;
+                writer.write_all(&interest_node.y.to_le_bytes()).await?;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn save_interests<W: AsyncWriteExt + std::marker::Unpin>(
         &self,
         writer: &mut W,
@@ -214,6 +259,16 @@ impl Map {
             .enumerate()
             .filter_map(|(i, w)| if w[0] != w[1] { Some(i as u16) } else { None })
             .collect::<Vec<u16>>();
+        let bytes_number = if self.tiles_sizes_prefix.last().copied().unwrap_or_default() / 4
+            <= std::u16::MAX as usize
+        {
+            writer.write_u8(16).await?;
+            2
+        } else {
+            writer.write_u8(24).await?;
+            3
+        };
+        writer.write_u8(4).await?; // size taken by each way
         writer
             .write_all(&(non_empty_tiles.len() as u16).to_le_bytes())
             .await?;
@@ -223,8 +278,15 @@ impl Map {
         for end in non_empty_tiles
             .iter()
             .map(|tile_index| self.tiles_sizes_prefix[*tile_index as usize])
+            // compute position in ways not in bytes
+            .map(|end| {
+                assert_eq!(end % 4, 0);
+                end / 4
+            })
         {
-            writer.write_all(&end.to_le_bytes()[0..3]).await?;
+            writer
+                .write_all(&end.to_le_bytes()[0..bytes_number])
+                .await?;
         }
         Ok(())
     }
