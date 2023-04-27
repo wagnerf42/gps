@@ -50,7 +50,7 @@ impl Map {
         Ok(Map::from_string(string, key_values))
     }
     pub fn from_string(s: &str, key_values: &[(String, String)]) -> Self {
-        let (nodes, mut ways, mut streets, mut interests) = crate::parse_osm_xml(s, key_values);
+        let (nodes, mut ways, mut streets, interests) = crate::parse_osm_xml(s, key_values);
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
         crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
@@ -188,12 +188,33 @@ impl Map {
         writer: &mut W,
     ) -> std::io::Result<()> {
         let mut tiled_interests: HashMap<u16, Vec<(usize, Node)>> = HashMap::new();
+        let (xmin, xmax) = self
+            .interests
+            .iter()
+            .map(|(_, node)| node.x)
+            .minmax()
+            .into_option()
+            .unwrap();
+
+        let (ymin, ymax) = self
+            .interests
+            .iter()
+            .map(|(_, node)| node.y)
+            .minmax()
+            .into_option()
+            .unwrap();
+
+        let first_tile_x = (xmin / self.side).floor() as usize;
+        let first_tile_y = (ymin / self.side).floor() as usize;
+        let grid_width = (xmax / self.side).floor() as usize - first_tile_x;
+        let grid_height = (ymax / self.side).floor() as usize - first_tile_y;
+
         for (tile, interest) in self.interests.iter().map(|(interest_type, interest_node)| {
             (
                 interest_node
                     .tiles(self.side)
-                    .map(|(tx, ty)| (tx - self.first_tile.0, ty - self.first_tile.1))
-                    .map(|(tx, ty)| (tx + ty * self.grid_size.0) as u16)
+                    .map(|(tx, ty)| (tx - first_tile_x, ty - first_tile_y))
+                    .map(|(tx, ty)| (tx + ty * grid_width) as u16)
                     .next() // first tile is enough for interests
                     .unwrap(),
                 (*interest_type, *interest_node),
@@ -205,9 +226,24 @@ impl Map {
         non_empty_tiles.sort_unstable();
 
         writer.write_u8(BlockType::Interests as u8).await?;
+
+        writer
+            .write_all(&(first_tile_x as u32).to_le_bytes())
+            .await?;
+        writer
+            .write_all(&(first_tile_y as u32).to_le_bytes())
+            .await?;
+        writer.write_all(&(grid_width as u32).to_le_bytes()).await?;
+        writer
+            .write_all(&(grid_height as u32).to_le_bytes())
+            .await?;
+        writer.write_all(&xmin.to_le_bytes()).await?;
+        writer.write_all(&ymin.to_le_bytes()).await?;
+        writer.write_all(&self.side.to_le_bytes()).await?;
+
         //TODO: factorize with save_sizes_prefix
         writer.write_u8(16).await?;
-        writer.write_u8(17).await?; // size taken by each interest
+        writer.write_u8(3).await?; // size taken by each interest
         writer
             .write_all(&(non_empty_tiles.len() as u16).to_le_bytes())
             .await?;
@@ -224,8 +260,8 @@ impl Map {
         for tile in &non_empty_tiles {
             for (interest_type, interest_node) in &tiled_interests[tile] {
                 writer.write_u8(*interest_type as u8).await?;
-                writer.write_all(&interest_node.x.to_le_bytes()).await?;
-                writer.write_all(&interest_node.y.to_le_bytes()).await?;
+                let encoded = interest_node.encode(first_tile_x, first_tile_y, self.side);
+                writer.write_all(&encoded).await?;
             }
         }
         Ok(())
