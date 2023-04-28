@@ -83,7 +83,10 @@ pub async fn save_tiled_interests<W: AsyncWriteExt + std::marker::Unpin>(
     for tile in &non_empty_tiles {
         for (interest_type, interest_node) in &tiled_interests[tile] {
             writer.write_u8(*interest_type as u8).await?;
-            let encoded = interest_node.encode(first_tile_x, first_tile_y, side);
+            let tile_x = first_tile_x + *tile as usize % grid_width;
+            let tile_y = first_tile_y + *tile as usize / grid_width;
+            let encoded = interest_node.encode(tile_x, tile_y, side);
+            // eprintln!("{interest_node:?} encodes as {encoded:?}, tile is {tile_x}/{tile_y}");
             writer.write_all(&encoded).await?;
         }
     }
