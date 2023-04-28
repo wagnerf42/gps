@@ -28,7 +28,6 @@ pub struct Map {
     pub grid_size: (usize, usize),
     pub side: f64,
     pub streets: HashMap<String, Vec<CWayId>>,
-    pub interests: Vec<(usize, Node)>,
 }
 
 impl From<Vec<Node>> for Map {
@@ -38,36 +37,43 @@ impl From<Vec<Node>> for Map {
         crate::cut_segments_on_tiles(&mut nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
         let tiles = crate::group_ways_in_tiles(&nodes, &ways, SIDE);
-        Map::new(&nodes, &ways, streets, &tiles, Vec::new(), SIDE)
+        Map::new(&nodes, &ways, streets, &tiles, SIDE)
     }
 }
 
+pub fn load_map_and_interests<P: AsRef<Path>>(
+    path: P,
+    key_values: &[(String, String)],
+) -> std::io::Result<(Map, Vec<(usize, Node)>)> {
+    let mut answer = Vec::new();
+    std::io::BufReader::new(std::fs::File::open(path.as_ref())?).read_to_end(&mut answer)?;
+    let string = std::str::from_utf8(&answer).unwrap();
+    Ok(map_and_interests_from_string(string, key_values))
+}
+
+pub fn map_and_interests_from_string(
+    s: &str,
+    key_values: &[(String, String)],
+) -> (Map, Vec<(usize, Node)>) {
+    let (nodes, mut ways, mut streets, interests) = crate::parse_osm_xml(s, key_values);
+    let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
+    let mut ways = crate::sanitize_ways(ways, &mut streets);
+    crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
+    crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
+    let ways = crate::cut_ways_into_edges(ways, &mut streets);
+    let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
+    (
+        Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE),
+        interests,
+    )
+}
+
 impl Map {
-    pub fn load<P: AsRef<Path>>(path: P, key_values: &[(String, String)]) -> std::io::Result<Self> {
-        let mut answer = Vec::new();
-        std::io::BufReader::new(std::fs::File::open(path.as_ref())?).read_to_end(&mut answer)?;
-        let string = std::str::from_utf8(&answer).unwrap();
-        Ok(Map::from_string(string, key_values))
-    }
-    pub fn from_string(s: &str, key_values: &[(String, String)]) -> Self {
-        let (nodes, mut ways, mut streets, interests) = crate::parse_osm_xml(s, key_values);
-        let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
-        let mut ways = crate::sanitize_ways(ways, &mut streets);
-        crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
-        crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
-        let ways = crate::cut_ways_into_edges(ways, &mut streets);
-        let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
-        Map::new(&renamed_nodes, &ways, streets, &tiles, interests, SIDE)
-    }
-    pub fn add_interests(&mut self, interests: impl Iterator<Item = (usize, Node)>) {
-        self.interests.extend(interests);
-    }
     pub fn new(
         nodes: &[Node],
         ways: &[[NodeId; 2]],
         streets: HashMap<String, Vec<WayId>>,
         tiles: &HashMap<TileKey, Vec<WayId>>,
-        interests: Vec<(usize, Node)>,
         side: f64,
     ) -> Self {
         let mut binary_ways = Vec::new();
@@ -129,7 +135,6 @@ impl Map {
             grid_size: ((xmax + 1 - xmin), (ymax + 1 - ymin)),
             side,
             streets: new_streets,
-            interests,
         }
     }
 
@@ -180,109 +185,6 @@ impl Map {
 
         // now, all tiled ways ; size is last element of sizes_prefix
         writer.write_all(&self.binary_ways).await?;
-        Ok(())
-    }
-
-    pub async fn save_tiled_interests<W: AsyncWriteExt + std::marker::Unpin>(
-        &self,
-        writer: &mut W,
-    ) -> std::io::Result<()> {
-        let mut tiled_interests: HashMap<u16, Vec<(usize, Node)>> = HashMap::new();
-        let (xmin, xmax) = self
-            .interests
-            .iter()
-            .map(|(_, node)| node.x)
-            .minmax()
-            .into_option()
-            .unwrap();
-
-        let (ymin, ymax) = self
-            .interests
-            .iter()
-            .map(|(_, node)| node.y)
-            .minmax()
-            .into_option()
-            .unwrap();
-
-        let first_tile_x = (xmin / self.side).floor() as usize;
-        let first_tile_y = (ymin / self.side).floor() as usize;
-        let grid_width = (xmax / self.side).floor() as usize - first_tile_x;
-        let grid_height = (ymax / self.side).floor() as usize - first_tile_y;
-
-        for (tile, interest) in self.interests.iter().map(|(interest_type, interest_node)| {
-            (
-                interest_node
-                    .tiles(self.side)
-                    .map(|(tx, ty)| (tx - first_tile_x, ty - first_tile_y))
-                    .map(|(tx, ty)| (tx + ty * grid_width) as u16)
-                    .next() // first tile is enough for interests
-                    .unwrap(),
-                (*interest_type, *interest_node),
-            )
-        }) {
-            tiled_interests.entry(tile).or_default().push(interest);
-        }
-        let mut non_empty_tiles = tiled_interests.keys().collect::<Vec<_>>();
-        non_empty_tiles.sort_unstable();
-
-        writer.write_u8(BlockType::Interests as u8).await?;
-
-        writer
-            .write_all(&(first_tile_x as u32).to_le_bytes())
-            .await?;
-        writer
-            .write_all(&(first_tile_y as u32).to_le_bytes())
-            .await?;
-        writer.write_all(&(grid_width as u32).to_le_bytes()).await?;
-        writer
-            .write_all(&(grid_height as u32).to_le_bytes())
-            .await?;
-        writer.write_all(&xmin.to_le_bytes()).await?;
-        writer.write_all(&ymin.to_le_bytes()).await?;
-        writer.write_all(&self.side.to_le_bytes()).await?;
-
-        //TODO: factorize with save_sizes_prefix
-        writer.write_u8(16).await?;
-        writer.write_u8(3).await?; // size taken by each interest
-        writer
-            .write_all(&(non_empty_tiles.len() as u16).to_le_bytes())
-            .await?;
-        for tile in &non_empty_tiles {
-            writer.write_all(&tile.to_le_bytes()).await?;
-        }
-        for end in non_empty_tiles.iter().scan(0u16, |previous_end, tile_id| {
-            let tile_size = tiled_interests[tile_id].len() as u16;
-            *previous_end += tile_size;
-            Some(*previous_end)
-        }) {
-            writer.write_all(&end.to_le_bytes()).await?;
-        }
-        for tile in &non_empty_tiles {
-            for (interest_type, interest_node) in &tiled_interests[tile] {
-                writer.write_u8(*interest_type as u8).await?;
-                let encoded = interest_node.encode(first_tile_x, first_tile_y, self.side);
-                writer.write_all(&encoded).await?;
-            }
-        }
-        Ok(())
-    }
-
-    pub async fn save_interests<W: AsyncWriteExt + std::marker::Unpin>(
-        &self,
-        writer: &mut W,
-    ) -> std::io::Result<()> {
-        writer.write_u8(BlockType::Interests as u8).await?;
-        eprintln!("interests number: {}", self.interests.len());
-        writer
-            .write_all(&(self.interests.len() as u16).to_le_bytes())
-            .await?;
-        for (interest, _) in &self.interests {
-            writer.write_u8(*interest as u8).await?;
-        }
-        for (_, node) in &self.interests {
-            writer.write_all(&node.x.to_le_bytes()).await?;
-            writer.write_all(&node.y.to_le_bytes()).await?;
-        }
         Ok(())
     }
 

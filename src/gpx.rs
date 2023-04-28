@@ -8,8 +8,9 @@ use itertools::Itertools;
 use tokio::io::AsyncWriteExt;
 
 use crate::{
+    load_map_and_interests,
     map::SIDE,
-    request, save_svg,
+    map_and_interests_from_string, request, save_svg, save_tiled_interests,
     simplify::simplify_path,
     svg::{MapTiles, UniColorNodes},
     Map, Node, Svg, SvgW,
@@ -119,9 +120,9 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     };
     println!("we now have {} points", rp.len());
 
-    let mut map = if let Some(map) = map_name
+    let (mut map, mut interests) = if let Some(map) = map_name
         .as_ref()
-        .and_then(|map_name| Map::load(map_name, key_values).ok())
+        .and_then(|map_name| load_map_and_interests(map_name, key_values).ok())
     {
         map
     } else {
@@ -134,7 +135,7 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
         )?);
         writer.write_all(osm_answer.as_bytes())?;
         eprintln!("we saved the map");
-        Map::from_string(&osm_answer, key_values)
+        map_and_interests_from_string(&osm_answer, key_values)
     };
 
     let path_map: Map = rp.clone().into();
@@ -155,7 +156,7 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     map.keep_tiles(&extended_path_tiles);
 
     let interests_nodes = UniColorNodes(
-        map.interests
+        interests
             .iter()
             .map(|(_, n)| n)
             .cloned()
@@ -178,9 +179,9 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     )
     .unwrap();
 
-    map.add_interests(std::iter::repeat(0).zip(waypoints.iter().copied()));
+    interests.extend(std::iter::repeat(0).zip(waypoints.iter().copied()));
     eprintln!("saving interests");
-    map.save_tiled_interests(writer).await?;
+    save_tiled_interests(&interests, map.side, writer).await?;
     eprintln!("saving the path");
     save_path(&rp, &waypoints, writer).await?;
     eprintln!("saving the pathtiles");
