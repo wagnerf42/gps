@@ -29,6 +29,8 @@ pub async fn save_tiled_interests<W: AsyncWriteExt + std::marker::Unpin>(
     let first_tile_y = (ymin / side).floor() as usize;
     let grid_width = (xmax / side).floor() as usize - first_tile_x;
     let grid_height = (ymax / side).floor() as usize - first_tile_y;
+    let xmin = (xmin / side).floor() * side;
+    let ymin = (ymin / side).floor() * side;
 
     for (tile, interest) in interests.iter().map(|(interest_type, interest_node)| {
         (
@@ -43,7 +45,7 @@ pub async fn save_tiled_interests<W: AsyncWriteExt + std::marker::Unpin>(
     }) {
         tiled_interests.entry(tile).or_default().push(interest);
     }
-    let mut non_empty_tiles = tiled_interests.keys().collect::<Vec<_>>();
+    let mut non_empty_tiles = tiled_interests.keys().copied().collect::<Vec<_>>();
     non_empty_tiles.sort_unstable();
 
     writer.write_u8(BlockType::Interests as u8).await?;
@@ -85,5 +87,6 @@ pub async fn save_tiled_interests<W: AsyncWriteExt + std::marker::Unpin>(
             writer.write_all(&encoded).await?;
         }
     }
+
     Ok(())
 }
