@@ -10,13 +10,15 @@ pub use simplify::simplify_path;
 mod utils;
 pub use utils::grid_coordinates_between;
 mod map;
-pub use map::Map;
+pub use map::{load_map_and_interests, map_and_interests_from_string, Map};
 mod graph;
 mod svg;
 pub use svg::{save_svg, Svg, SvgW};
 mod gpx;
 pub use crate::gpx::{convert_gpx, load_gpx, parse_gpx_points, request_map_from_path};
+mod interests;
 mod streets;
+pub use interests::save_tiled_interests;
 
 pub type TileKey = (usize, usize);
 pub type WayId = usize;

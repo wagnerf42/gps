@@ -1,4 +1,3 @@
-use gps::Map;
 use tokio::io::AsyncWriteExt;
 
 #[tokio::main]
@@ -20,8 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("tourism".to_owned(), "artwork".to_string()),
     ];
 
-    let map = if let Ok(map) = Map::load(&map_name, &key_values) {
-        map
+    let (map, interests) = if let Ok(loaded) = gps::load_map_and_interests(&map_name, &key_values) {
+        loaded
     } else {
         gps::request_map_from_path(&path, &key_values, &map_name)
             .await
@@ -29,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut writer = tokio::io::BufWriter::new(tokio::fs::File::create(gps_name).await?);
-    gps::convert_gpx(&waypoints, &path, map, &mut writer).await?;
+    gps::convert_gpx(&waypoints, &path, map, interests, &mut writer).await?;
     writer.flush().await?;
     Ok(())
 }

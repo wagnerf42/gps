@@ -8,8 +8,9 @@ use itertools::Itertools;
 use tokio::io::AsyncWriteExt;
 
 use crate::{
+    load_map_and_interests,
     map::SIDE,
-    request, save_svg,
+    map_and_interests_from_string, request, save_svg, save_tiled_interests,
     simplify::simplify_path,
     svg::{MapTiles, UniColorNodes},
     Map, Node, Svg, SvgW,
@@ -123,7 +124,7 @@ pub async fn request_map_from_path<P: AsRef<std::path::Path>>(
     path: &[Node],
     key_values: &[(String, String)],
     map_name: P,
-) -> Result<Map, Box<dyn std::error::Error>> {
+) -> Result<(Map, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
     eprintln!("requesting map");
     let path_polygon = build_polygon(path, SIDE * 2.); // two tiles on each side
     let osm_answer = request(&path_polygon).await?;
@@ -131,13 +132,14 @@ pub async fn request_map_from_path<P: AsRef<std::path::Path>>(
     let mut writer = std::io::BufWriter::new(std::fs::File::create(map_name)?);
     writer.write_all(osm_answer.as_bytes())?;
     eprintln!("we saved the map");
-    Ok(Map::from_string(&osm_answer, key_values))
+    Ok(map_and_interests_from_string(&osm_answer, key_values))
 }
 
 pub async fn convert_gpx<W: AsyncWriteExt + std::marker::Unpin>(
     waypoints: &HashSet<Node>,
     gpx_path: &Vec<Node>,
     mut map: Map,
+    mut interests: Vec<(usize, Node)>,
     writer: &mut W,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let path_map: Map = gpx_path.clone().into();
@@ -158,7 +160,7 @@ pub async fn convert_gpx<W: AsyncWriteExt + std::marker::Unpin>(
     map.keep_tiles(&extended_path_tiles);
 
     let interests_nodes = UniColorNodes(
-        map.interests
+        interests
             .iter()
             .map(|(_, n)| n)
             .cloned()
@@ -181,9 +183,9 @@ pub async fn convert_gpx<W: AsyncWriteExt + std::marker::Unpin>(
     )
     .unwrap();
 
-    map.add_interests(std::iter::repeat(0).zip(waypoints.iter().copied()));
+    interests.extend(std::iter::repeat(0).zip(waypoints.iter().copied()));
     eprintln!("saving interests");
-    map.save_interests(writer).await?;
+    save_tiled_interests(&interests, map.side, writer).await?;
     eprintln!("saving the path");
     save_path(&gpx_path, &waypoints, writer).await?;
     eprintln!("saving the pathtiles");
