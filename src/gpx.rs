@@ -18,7 +18,7 @@ use crate::{
 const LOWER_SHARP_TURN: f64 = 80.0 * std::f64::consts::PI / 180.0;
 const UPPER_SHARP_TURN: f64 = std::f64::consts::PI * 2.0 - LOWER_SHARP_TURN;
 
-fn points<R: Read>(reader: R) -> (HashSet<Node>, Vec<Node>) {
+pub fn parse_gpx_points<R: Read>(reader: R) -> (HashSet<Node>, Vec<Node>) {
     // read takes any io::Read and gives a Result<Gpx, Error>.
     let mut gpx: Gpx = read(reader).unwrap();
     eprintln!("we have {} tracks", gpx.tracks.len());
@@ -76,15 +76,13 @@ fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
         });
 }
 
-pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
-    input_reader: R,
-    map_name: Option<String>,
-    key_values: &[(String, String)],
-    writer: &mut W,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn load_gpx(path: &str) -> std::io::Result<(HashSet<Node>, Vec<Node>)> {
+    let gpx_file = std::fs::File::open(path)?;
+    let gpx_reader = std::io::BufReader::new(gpx_file);
+
     // load all points composing the trace and mark commented points
     // as special waypoints.
-    let (mut waypoints, p) = points(input_reader);
+    let (mut waypoints, p) = parse_gpx_points(gpx_reader);
 
     // detect sharp turns before path simplification to keep them
     detect_sharp_turns(&p, &mut waypoints);
@@ -118,26 +116,31 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
             .unwrap()
     };
     println!("we now have {} points", rp.len());
+    Ok((waypoints, rp))
+}
 
-    let mut map = if let Some(map) = map_name
-        .as_ref()
-        .and_then(|map_name| Map::load(map_name, key_values).ok())
-    {
-        map
-    } else {
-        eprintln!("requesting map");
-        let path_polygon = build_polygon(&rp, SIDE * 2.); // two tiles on each side
-        let osm_answer = request(&path_polygon).await?;
-        eprintln!("we got the map, saving it");
-        let mut writer = std::io::BufWriter::new(std::fs::File::create(
-            map_name.unwrap_or("default.map".to_owned()),
-        )?);
-        writer.write_all(osm_answer.as_bytes())?;
-        eprintln!("we saved the map");
-        Map::from_string(&osm_answer, key_values)
-    };
+pub async fn request_map_from_path<P: AsRef<std::path::Path>>(
+    path: &[Node],
+    key_values: &[(String, String)],
+    map_name: P,
+) -> Result<Map, Box<dyn std::error::Error>> {
+    eprintln!("requesting map");
+    let path_polygon = build_polygon(path, SIDE * 2.); // two tiles on each side
+    let osm_answer = request(&path_polygon).await?;
+    eprintln!("we got the map, saving it");
+    let mut writer = std::io::BufWriter::new(std::fs::File::create(map_name)?);
+    writer.write_all(osm_answer.as_bytes())?;
+    eprintln!("we saved the map");
+    Ok(Map::from_string(&osm_answer, key_values))
+}
 
-    let path_map: Map = rp.clone().into();
+pub async fn convert_gpx<W: AsyncWriteExt + std::marker::Unpin>(
+    waypoints: &HashSet<Node>,
+    gpx_path: &Vec<Node>,
+    mut map: Map,
+    writer: &mut W,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let path_map: Map = gpx_path.clone().into();
     let extended_path_tiles = path_map
         .non_empty_tiles()
         .map(|(x, y)| {
@@ -171,7 +174,7 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
         map.bounding_box(),
         [
             &map as SvgW,
-            (&rp.as_slice()) as SvgW,
+            (&gpx_path.as_slice()) as SvgW,
             &interests_nodes as SvgW,
             &maptiles as SvgW,
         ],
@@ -182,9 +185,9 @@ pub async fn convert_gpx<R: Read, W: AsyncWriteExt + std::marker::Unpin>(
     eprintln!("saving interests");
     map.save_interests(writer).await?;
     eprintln!("saving the path");
-    save_path(&rp, &waypoints, writer).await?;
+    save_path(&gpx_path, &waypoints, writer).await?;
     eprintln!("saving the pathtiles");
-    let path: Map = rp.into();
+    let path: Map = gpx_path.clone().into();
     path.save_tiles(writer, &[255, 0, 0]).await?;
     eprintln!("saving the maptiles");
     map.save_tiles(writer, &[0, 0, 0]).await?;

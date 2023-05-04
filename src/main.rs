@@ -1,5 +1,4 @@
 use gps::Map;
-use itertools::Itertools;
 use tokio::io::AsyncWriteExt;
 
 #[tokio::main]
@@ -7,23 +6,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gpx_filename = std::env::args()
         .nth(1)
         .unwrap_or("retours_route.gpx".to_owned());
-    let gpx_file = std::fs::File::open(gpx_filename)?;
-    let gpx_reader = std::io::BufReader::new(gpx_file);
 
-    let key_values: Vec<(String, String)> = std::env::args()
-        .skip(3)
-        .filter_map(|key_slash_value| {
-            key_slash_value
-                .split('/')
-                .map(|s| s.to_owned())
-                .tuples()
-                .next()
-        })
-        .collect();
+    let (waypoints, path) = gps::load_gpx(&gpx_filename)?;
+    let mut map_name: std::path::PathBuf = (&gpx_filename).into();
+    map_name.set_extension("map");
+    let mut gps_name: std::path::PathBuf = gpx_filename.into();
+    gps_name.set_extension("gps");
 
-    let map_name = std::env::args().nth(2);
-    let mut writer = tokio::io::BufWriter::new(tokio::fs::File::create("out.gps").await?);
-    gps::convert_gpx(gpx_reader, map_name, &key_values, &mut writer).await?;
+    let key_values = [
+        ("shop".to_owned(), "bakery".to_string()),
+        ("amenity".to_owned(), "drinking_water".to_string()),
+        ("amenity".to_owned(), "toilets".to_string()),
+        ("tourism".to_owned(), "artwork".to_string()),
+    ];
+
+    let map = if let Ok(map) = Map::load(&map_name, &key_values) {
+        map
+    } else {
+        gps::request_map_from_path(&path, &key_values, &map_name)
+            .await
+            .expect("failed requesting map")
+    };
+
+    let mut writer = tokio::io::BufWriter::new(tokio::fs::File::create(gps_name).await?);
+    gps::convert_gpx(&waypoints, &path, map, &mut writer).await?;
     writer.flush().await?;
     Ok(())
 }
