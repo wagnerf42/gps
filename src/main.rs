@@ -28,7 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(loaded) = gps::load_map_and_interests(&map_name, &key_values) {
                 loaded
             } else {
-                gps::request_map_from_path(&path, &key_values, &map_name)
+                let path_polygon = gps::build_polygon(&path, gps::SIDE * 2.); // two tiles on each side
+                gps::request_map_from(&path_polygon, &key_values, &map_name)
                     .await
                     .expect("failed requesting map")
             };
@@ -62,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Node::new(xmin + width, ymin + height),
                     Node::new(xmin, ymin + height),
                 ];
-                gps::request_map_from_path(&area, &key_values, &map_name)
+                gps::request_map_from(&area, &key_values, &map_name)
                     .await
                     .expect("failed requesting map")
             };

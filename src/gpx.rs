@@ -120,14 +120,13 @@ pub fn load_gpx(path: &str) -> std::io::Result<(HashSet<Node>, Vec<Node>)> {
     Ok((waypoints, rp))
 }
 
-pub async fn request_map_from_path<P: AsRef<std::path::Path>>(
-    path: &[Node],
+pub async fn request_map_from<P: AsRef<std::path::Path>>(
+    polygon: &[Node],
     key_values: &[(String, String)],
     map_name: P,
 ) -> Result<(Map, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
     eprintln!("requesting map");
-    let path_polygon = build_polygon(path, SIDE * 2.); // two tiles on each side
-    let osm_answer = request(&path_polygon).await?;
+    let osm_answer = request(&polygon).await?;
     eprintln!("we got the map, saving it");
     let mut writer = std::io::BufWriter::new(std::fs::File::create(map_name)?);
     writer.write_all(osm_answer.as_bytes())?;
@@ -236,7 +235,7 @@ pub async fn save_path<W: AsyncWriteExt + std::marker::Unpin>(
 }
 
 // inflate a polygon around given path
-fn build_polygon(path: &[Node], thickness: f64) -> Vec<Node> {
+pub fn build_polygon(path: &[Node], thickness: f64) -> Vec<Node> {
     path.windows(2)
         .filter(|w| w[0] != w[1])
         .flat_map(|segment| parallel_segment(segment.iter(), thickness))
