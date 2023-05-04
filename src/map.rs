@@ -373,7 +373,7 @@ impl Map {
     }
 
     // discard all tiles which are not the ones we want.
-    pub(crate) fn keep_tiles(&mut self, kept_tiles: &HashSet<(usize, usize)>) {
+    pub fn keep_tiles(&mut self, kept_tiles: &HashSet<(usize, usize)>) {
         let mut new_binary_ways: Vec<u8> = Vec::new();
         let mut new_tiles_sizes_prefix = Vec::new();
         let mut kept_ways = HashSet::new();

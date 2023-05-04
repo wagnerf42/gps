@@ -136,29 +136,12 @@ pub async fn request_map_from_path<P: AsRef<std::path::Path>>(
 }
 
 pub async fn convert_gpx<W: AsyncWriteExt + std::marker::Unpin>(
-    waypoints: &HashSet<Node>,
-    gpx_path: &Vec<Node>,
+    waypoints: Option<&HashSet<Node>>,
+    gpx_path: Option<&Vec<Node>>,
     mut map: Map,
     mut interests: Vec<(usize, Node)>,
     writer: &mut W,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let path_map: Map = gpx_path.clone().into();
-    let extended_path_tiles = path_map
-        .non_empty_tiles()
-        .map(|(x, y)| {
-            (
-                x + path_map.first_tile.0 - map.first_tile.0,
-                y + path_map.first_tile.1 - map.first_tile.1,
-            )
-        })
-        .flat_map(|(x, y)| {
-            (x.saturating_sub(1)..(x + 2))
-                .flat_map(move |nx| (y.saturating_sub(1)..(y + 2)).map(move |ny| (nx, ny)))
-        })
-        .collect::<HashSet<(usize, usize)>>();
-
-    map.keep_tiles(&extended_path_tiles);
-
     let interests_nodes = UniColorNodes(
         interests
             .iter()
@@ -167,30 +150,57 @@ pub async fn convert_gpx<W: AsyncWriteExt + std::marker::Unpin>(
             .collect::<Vec<_>>(),
     );
 
-    let maptiles = MapTiles {
-        tiles: &extended_path_tiles,
-        map: &map,
-    };
-    save_svg(
-        "map.svg",
-        map.bounding_box(),
-        [
-            &map as SvgW,
-            (&gpx_path.as_slice()) as SvgW,
-            &interests_nodes as SvgW,
-            &maptiles as SvgW,
-        ],
-    )
-    .unwrap();
+    if let Some(gpx_path) = gpx_path {
+        let path_map: Map = gpx_path.clone().into();
+        let extended_path_tiles = path_map
+            .non_empty_tiles()
+            .map(|(x, y)| {
+                (
+                    x + path_map.first_tile.0 - map.first_tile.0,
+                    y + path_map.first_tile.1 - map.first_tile.1,
+                )
+            })
+            .flat_map(|(x, y)| {
+                (x.saturating_sub(1)..(x + 2))
+                    .flat_map(move |nx| (y.saturating_sub(1)..(y + 2)).map(move |ny| (nx, ny)))
+            })
+            .collect::<HashSet<(usize, usize)>>();
 
-    interests.extend(std::iter::repeat(0).zip(waypoints.iter().copied()));
+        map.keep_tiles(&extended_path_tiles);
+
+        save_svg(
+            "map.svg",
+            map.bounding_box(),
+            [
+                &map as SvgW,
+                (&gpx_path.as_slice()) as SvgW,
+                &interests_nodes as SvgW,
+            ],
+        )
+        .unwrap();
+    } else {
+        save_svg(
+            "map.svg",
+            map.bounding_box(),
+            [&map as SvgW, &interests_nodes as SvgW],
+        )
+        .unwrap();
+    }
+
+    if let Some(waypoints) = waypoints {
+        interests.extend(std::iter::repeat(0).zip(waypoints.iter().copied()));
+    }
     eprintln!("saving interests");
     save_tiled_interests(&interests, map.side, writer).await?;
-    eprintln!("saving the path");
-    save_path(&gpx_path, &waypoints, writer).await?;
-    eprintln!("saving the pathtiles");
-    let path: Map = gpx_path.clone().into();
-    path.save_tiles(writer, &[255, 0, 0]).await?;
+    if let Some(gpx_path) = gpx_path {
+        if let Some(waypoints) = waypoints {
+            eprintln!("saving the path");
+            save_path(gpx_path, waypoints, writer).await?;
+            eprintln!("saving the pathtiles");
+            let path: Map = gpx_path.clone().into();
+            path.save_tiles(writer, &[255, 0, 0]).await?;
+        }
+    }
     eprintln!("saving the maptiles");
     map.save_tiles(writer, &[0, 0, 0]).await?;
     eprintln!("all is saved");

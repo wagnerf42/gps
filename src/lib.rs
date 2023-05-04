@@ -10,7 +10,7 @@ pub use simplify::simplify_path;
 mod utils;
 pub use utils::grid_coordinates_between;
 mod map;
-pub use map::{load_map_and_interests, map_and_interests_from_string, Map};
+pub use map::{load_map_and_interests, map_and_interests_from_string, Map, SIDE};
 mod graph;
 mod svg;
 pub use svg::{save_svg, Svg, SvgW};
