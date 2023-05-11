@@ -1,10 +1,10 @@
+use futures::io::AsyncWriteExt;
 use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
-    io::Read,
+    io::{Read, Write},
     path::Path,
 };
-use tokio::io::AsyncWriteExt;
 
 pub const SIDE: f64 = 1. / 500.; // excellent value
                                  // with it we have few segments crossing several squares
@@ -148,50 +148,31 @@ impl Map {
         })
     }
 
-    pub async fn save_tiles<W: AsyncWriteExt + std::marker::Unpin>(
-        &self,
-        writer: &mut W,
-        color: &[u8; 3],
-    ) -> std::io::Result<()> {
-        writer.write_u8(BlockType::Tiles as u8).await?;
-        writer.write_all(color).await?;
+    pub fn save_tiles<W: Write>(&self, writer: &mut W, color: &[u8; 3]) -> std::io::Result<()> {
+        writer.write_all(&[BlockType::Tiles as u8])?;
+        writer.write_all(color)?;
 
         // first, the header
-        writer
-            .write_all(&(self.first_tile.0 as u32).to_le_bytes())
-            .await?;
-        writer
-            .write_all(&(self.first_tile.1 as u32).to_le_bytes())
-            .await?;
-        writer
-            .write_all(&(self.grid_size.0 as u32).to_le_bytes())
-            .await?;
-        writer
-            .write_all(&(self.grid_size.1 as u32).to_le_bytes())
-            .await?;
-        writer
-            .write_all(&self.start_coordinates.0.to_le_bytes())
-            .await?;
-        writer
-            .write_all(&self.start_coordinates.1.to_le_bytes())
-            .await?;
-        writer.write_all(&self.side.to_le_bytes()).await?;
+        writer.write_all(&(self.first_tile.0 as u32).to_le_bytes())?;
+        writer.write_all(&(self.first_tile.1 as u32).to_le_bytes())?;
+        writer.write_all(&(self.grid_size.0 as u32).to_le_bytes())?;
+        writer.write_all(&(self.grid_size.1 as u32).to_le_bytes())?;
+        writer.write_all(&self.start_coordinates.0.to_le_bytes())?;
+        writer.write_all(&self.start_coordinates.1.to_le_bytes())?;
+        writer.write_all(&self.side.to_le_bytes())?;
 
-        self.save_sizes_prefix(writer).await?;
+        self.save_sizes_prefix(writer)?;
         // for s in &self.tiles_sizes_prefix {
         //     assert!(*s <= 1 << 24);
         //     writer.write_all(&(*s as u32).to_le_bytes()[0..3]).await?;
         // }
 
         // now, all tiled ways ; size is last element of sizes_prefix
-        writer.write_all(&self.binary_ways).await?;
+        writer.write_all(&self.binary_ways)?;
         Ok(())
     }
 
-    pub async fn save_sizes_prefix<W: AsyncWriteExt + std::marker::Unpin>(
-        &self,
-        writer: &mut W,
-    ) -> std::io::Result<()> {
+    pub fn save_sizes_prefix<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let non_empty_tiles = std::iter::once([0, self.tiles_sizes_prefix[0]].as_slice())
             .chain(self.tiles_sizes_prefix.windows(2))
             .enumerate()
@@ -200,18 +181,16 @@ impl Map {
         let bytes_number = if self.tiles_sizes_prefix.last().copied().unwrap_or_default() / 4
             <= std::u16::MAX as usize
         {
-            writer.write_u8(16).await?;
+            writer.write_all(&[16])?;
             2
         } else {
-            writer.write_u8(24).await?;
+            writer.write_all(&[24])?;
             3
         };
-        writer.write_u8(4).await?; // size taken by each way
-        writer
-            .write_all(&(non_empty_tiles.len() as u16).to_le_bytes())
-            .await?;
+        writer.write_all(&[4])?; // size taken by each way
+        writer.write_all(&(non_empty_tiles.len() as u16).to_le_bytes())?;
         for tile in &non_empty_tiles {
-            writer.write_all(&tile.to_le_bytes()).await?;
+            writer.write_all(&tile.to_le_bytes())?;
         }
         for end in non_empty_tiles
             .iter()
@@ -222,9 +201,7 @@ impl Map {
                 end / 4
             })
         {
-            writer
-                .write_all(&end.to_le_bytes()[0..bytes_number])
-                .await?;
+            writer.write_all(&end.to_le_bytes()[0..bytes_number])?;
         }
         Ok(())
     }
@@ -233,7 +210,7 @@ impl Map {
         &self,
         writer: &mut W,
     ) -> std::io::Result<()> {
-        writer.write_u8(BlockType::Streets as u8).await?;
+        writer.write_all(&[BlockType::Streets as u8]).await?;
 
         // finally, write all streets data
         let encoded = crate::streets::encode_streets(&self.streets);

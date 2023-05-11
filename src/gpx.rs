@@ -5,16 +5,8 @@ use std::{
 
 use gpx::{read, Gpx};
 use itertools::Itertools;
-use tokio::io::AsyncWriteExt;
 
-use crate::{
-    load_map_and_interests,
-    map::SIDE,
-    map_and_interests_from_string, request, save_svg, save_tiled_interests,
-    simplify::simplify_path,
-    svg::{MapTiles, UniColorNodes},
-    Map, Node, Svg, SvgW,
-};
+use crate::{map_and_interests_from_string, request, Map, Node};
 
 const LOWER_SHARP_TURN: f64 = 80.0 * std::f64::consts::PI / 180.0;
 const UPPER_SHARP_TURN: f64 = std::f64::consts::PI * 2.0 - LOWER_SHARP_TURN;
@@ -46,7 +38,7 @@ pub fn parse_gpx_points<R: Read>(reader: R) -> (HashSet<Node>, Vec<Node>) {
     (waypoints, points)
 }
 
-fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
+pub fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
     path.iter()
         .tuple_windows()
         .map(|(a, b, c)| {
@@ -77,147 +69,31 @@ fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
         });
 }
 
-pub fn load_gpx(path: &str) -> std::io::Result<(HashSet<Node>, Vec<Node>)> {
-    let gpx_file = std::fs::File::open(path)?;
-    let gpx_reader = std::io::BufReader::new(gpx_file);
-
-    // load all points composing the trace and mark commented points
-    // as special waypoints.
-    let (mut waypoints, p) = parse_gpx_points(gpx_reader);
-
-    // detect sharp turns before path simplification to keep them
-    detect_sharp_turns(&p, &mut waypoints);
-    waypoints.insert(p.first().copied().unwrap());
-    waypoints.insert(p.last().copied().unwrap());
-    println!("we have {} waypoints", waypoints.len());
-
-    println!("initially we had {} points", p.len());
-
-    // simplify path
-    let rp = if p.len() < 100 {
-        p.clone()
-    } else {
-        std::iter::successors(Some(0.00015), |precision| Some(precision / 2.))
-            .map(|precision| {
-                // simplify path
-                let mut rp = Vec::new();
-                let mut segment = Vec::new();
-                for point in &p {
-                    segment.push(*point);
-                    if waypoints.contains(point) && segment.len() >= 2 {
-                        let mut s = simplify_path(&segment, precision);
-                        rp.append(&mut s);
-                        segment = rp.pop().into_iter().collect();
-                    }
-                }
-                rp.append(&mut segment);
-                rp
-            })
-            .find(|rp| rp.len() > 80)
-            .unwrap()
-    };
-    println!("we now have {} points", rp.len());
-    Ok((waypoints, rp))
-}
-
 pub async fn request_map_from<P: AsRef<std::path::Path>>(
     polygon: &[Node],
     key_values: &[(String, String)],
-    map_name: P,
+    map_name: Option<P>,
 ) -> Result<(Map, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
     eprintln!("requesting map");
-    let osm_answer = request(&polygon).await?;
+    let osm_answer = request(polygon).await?;
     eprintln!("we got the map, saving it");
-    let mut writer = std::io::BufWriter::new(std::fs::File::create(map_name)?);
-    writer.write_all(osm_answer.as_bytes())?;
-    eprintln!("we saved the map");
+    if let Some(map_name) = map_name {
+        let mut writer = std::io::BufWriter::new(std::fs::File::create(map_name)?);
+        writer.write_all(osm_answer.as_bytes())?;
+        eprintln!("we saved the map");
+    }
     Ok(map_and_interests_from_string(&osm_answer, key_values))
 }
 
-pub async fn convert_gpx<W: AsyncWriteExt + std::marker::Unpin>(
-    waypoints: Option<&HashSet<Node>>,
-    gpx_path: Option<&Vec<Node>>,
-    mut map: Map,
-    mut interests: Vec<(usize, Node)>,
-    writer: &mut W,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let interests_nodes = UniColorNodes(
-        interests
-            .iter()
-            .map(|(_, n)| n)
-            .cloned()
-            .collect::<Vec<_>>(),
-    );
-
-    if let Some(gpx_path) = gpx_path {
-        let path_map: Map = gpx_path.clone().into();
-        let extended_path_tiles = path_map
-            .non_empty_tiles()
-            .map(|(x, y)| {
-                (
-                    x + path_map.first_tile.0 - map.first_tile.0,
-                    y + path_map.first_tile.1 - map.first_tile.1,
-                )
-            })
-            .flat_map(|(x, y)| {
-                (x.saturating_sub(1)..(x + 2))
-                    .flat_map(move |nx| (y.saturating_sub(1)..(y + 2)).map(move |ny| (nx, ny)))
-            })
-            .collect::<HashSet<(usize, usize)>>();
-
-        map.keep_tiles(&extended_path_tiles);
-
-        save_svg(
-            "map.svg",
-            map.bounding_box(),
-            [
-                &map as SvgW,
-                (&gpx_path.as_slice()) as SvgW,
-                &interests_nodes as SvgW,
-            ],
-        )
-        .unwrap();
-    } else {
-        save_svg(
-            "map.svg",
-            map.bounding_box(),
-            [&map as SvgW, &interests_nodes as SvgW],
-        )
-        .unwrap();
-    }
-
-    if let Some(waypoints) = waypoints {
-        interests.extend(std::iter::repeat(0).zip(waypoints.iter().copied()));
-    }
-    eprintln!("saving interests");
-    save_tiled_interests(&interests, map.side, writer).await?;
-    if let Some(gpx_path) = gpx_path {
-        if let Some(waypoints) = waypoints {
-            eprintln!("saving the path");
-            save_path(gpx_path, waypoints, writer).await?;
-            eprintln!("saving the pathtiles");
-            let path: Map = gpx_path.clone().into();
-            path.save_tiles(writer, &[255, 0, 0]).await?;
-        }
-    }
-    eprintln!("saving the maptiles");
-    map.save_tiles(writer, &[0, 0, 0]).await?;
-    eprintln!("all is saved");
-
-    Ok(())
-}
-
-pub async fn save_path<W: AsyncWriteExt + std::marker::Unpin>(
+pub fn save_path<W: Write>(
     points: &[Node],
     waypoints: &HashSet<Node>,
     writer: &mut W,
 ) -> std::io::Result<()> {
-    writer.write_u8(crate::map::BlockType::Path as u8).await?;
-    writer
-        .write_all(&(points.len() as u16).to_le_bytes())
-        .await?;
+    writer.write_all(&[crate::map::BlockType::Path as u8])?;
+    writer.write_all(&(points.len() as u16).to_le_bytes())?;
     for coordinates in points.iter().flat_map(|p| [p.x, p.y]) {
-        writer.write_all(&coordinates.to_le_bytes()).await?;
+        writer.write_all(&coordinates.to_le_bytes())?;
     }
 
     let mut waypoints_bits = std::iter::repeat(0u8)
@@ -229,7 +105,7 @@ pub async fn save_path<W: AsyncWriteExt + std::marker::Unpin>(
         }
     });
     for byte in &waypoints_bits {
-        writer.write_all(&byte.to_le_bytes()).await?;
+        writer.write_all(&byte.to_le_bytes())?;
     }
     Ok(())
 }

@@ -1,6 +1,8 @@
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
+mod gps;
+pub use gps::{load_gps_from_file, Gps};
 mod node;
 pub use node::Node;
 mod osm;
@@ -15,7 +17,7 @@ mod graph;
 mod svg;
 pub use svg::{save_svg, Svg, SvgW};
 mod gpx;
-pub use crate::gpx::{build_polygon, convert_gpx, load_gpx, parse_gpx_points, request_map_from};
+pub use crate::gpx::{build_polygon, detect_sharp_turns, parse_gpx_points, request_map_from};
 mod interests;
 mod streets;
 pub use interests::save_tiled_interests;

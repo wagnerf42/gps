@@ -16,7 +16,7 @@ in pkgs.mkShell {
     # flow
 
     (with fenix;
-      combine (with stable; [
+      combine (with default; [
         cargo
         clippy-preview
         latest.rust-src

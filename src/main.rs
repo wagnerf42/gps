@@ -1,8 +1,4 @@
-use itertools::Itertools;
-use std::collections::HashSet;
-
 use gps::Node;
-use tokio::io::AsyncWriteExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,30 +9,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("tourism".to_owned(), "artwork".to_string()),
     ];
 
-    if std::env::args().len() == 2 {
-        let gpx_filename = std::env::args()
-            .nth(1)
-            .unwrap_or("retours_route.gpx".to_owned());
+    let (mut gps, map_name) = if std::env::args().len() == 2 {
+        let gpx_filename = std::env::args().nth(1).unwrap();
 
-        let (waypoints, path) = gps::load_gpx(&gpx_filename)?;
+        let gps = gps::load_gps_from_file(&gpx_filename)?;
         let mut map_name: std::path::PathBuf = (&gpx_filename).into();
         map_name.set_extension("map");
-        let mut gps_name: std::path::PathBuf = gpx_filename.into();
-        gps_name.set_extension("gps");
-
-        let (map, interests) =
-            if let Ok(loaded) = gps::load_map_and_interests(&map_name, &key_values) {
-                loaded
-            } else {
-                let path_polygon = gps::build_polygon(&path, gps::SIDE * 2.); // two tiles on each side
-                gps::request_map_from(&path_polygon, &key_values, &map_name)
-                    .await
-                    .expect("failed requesting map")
-            };
-
-        let mut writer = tokio::io::BufWriter::new(tokio::fs::File::create(gps_name).await?);
-        gps::convert_gpx(Some(&waypoints), Some(&path), map, interests, &mut writer).await?;
-        writer.flush().await?;
+        (gps, map_name)
     } else {
         let mut coordinates = std::env::args()
             .skip(1)
@@ -46,40 +25,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let width = coordinates.next().unwrap();
         let height = coordinates.next().unwrap();
 
-        let gpx_filename = format!("area_[{xmin}_{ymin}_{width}_{height}].gpx");
+        let map_name: std::path::PathBuf =
+            format!("area_[{xmin}_{ymin}_{width}_{height}].map").into();
 
-        let mut map_name: std::path::PathBuf = (&gpx_filename).into();
-        map_name.set_extension("map");
-        let mut gps_name: std::path::PathBuf = gpx_filename.into();
-        gps_name.set_extension("gps");
+        let gps = gps::Gps::from_area(vec![
+            Node::new(xmin, ymin),
+            Node::new(xmin + width, ymin),
+            Node::new(xmin + width, ymin + height),
+            Node::new(xmin, ymin + height),
+        ]);
+        (gps, map_name)
+    };
+    let mut gps_name: std::path::PathBuf = map_name.clone();
+    gps_name.set_extension("gps");
 
-        let (mut map, interests) =
-            if let Ok(loaded) = gps::load_map_and_interests(&map_name, &key_values) {
-                loaded
-            } else {
-                let area = vec![
-                    Node::new(xmin, ymin),
-                    Node::new(xmin + width, ymin),
-                    Node::new(xmin + width, ymin + height),
-                    Node::new(xmin, ymin + height),
-                ];
-                gps::request_map_from(&area, &key_values, &map_name)
-                    .await
-                    .expect("failed requesting map")
-            };
-        let min_x_tile = (xmin / gps::SIDE).floor() as usize;
-        let max_x_tile = ((xmin + width) / gps::SIDE).floor() as usize;
-        let min_y_tile = (ymin / gps::SIDE).floor() as usize;
-        let max_y_tile = ((ymin + height) / gps::SIDE).floor() as usize;
-        let tiles_wanted = (min_x_tile..=max_x_tile)
-            .cartesian_product(min_y_tile..=max_y_tile)
-            .map(|(x, y)| (x - map.first_tile.0, y - map.first_tile.1))
-            .collect::<HashSet<_>>();
-        map.keep_tiles(&tiles_wanted);
-
-        let mut writer = tokio::io::BufWriter::new(tokio::fs::File::create(gps_name).await?);
-        gps::convert_gpx(None, None, map, interests, &mut writer).await?;
-        writer.flush().await?;
+    if gps.load_map(&map_name, &key_values).is_err() {
+        gps.request_map(&key_values, Some(map_name)).await
     }
+    gps.save_svg("map.svg").expect("failed saving svg file");
+
+    let mut writer = std::io::BufWriter::new(std::fs::File::create(gps_name)?);
+    gps.write_gps(&mut writer)?;
     Ok(())
 }
