@@ -76,6 +76,7 @@ pub async fn request_map_from<P: AsRef<std::path::Path>>(
 ) -> Result<(Map, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
     eprintln!("requesting map");
     let osm_answer = request(polygon).await?;
+    crate::log("got the request answer");
     eprintln!("we got the map, saving it");
     if let Some(map_name) = map_name {
         let mut writer = std::io::BufWriter::new(std::fs::File::create(map_name)?);

@@ -20,14 +20,54 @@ pub struct Gps {
 }
 
 #[wasm_bindgen]
-pub fn get_path(gps: &Gps) -> Vec<f64> {
-    todo!()
+pub fn get_polygon(gps: &Gps) -> Vec<f64> {
+    gps.map_polygon.iter().flat_map(|n| [n.y, n.x]).collect()
+}
+
+#[wasm_bindgen]
+pub fn get_gps_content(gps: &Gps) -> Vec<u8> {
+    let mut binary: Vec<u8> = Vec::new();
+    gps.write_gps(&mut binary).expect("failed writing binary");
+    binary
+}
+
+#[wasm_bindgen]
+pub async fn request_map(
+    gps: &mut Gps,
+    key1: &str,
+    value1: &str,
+    key2: &str,
+    value2: &str,
+    key3: &str,
+    value3: &str,
+    key4: &str,
+    value4: &str,
+) {
+    let interests = [
+        (key1.to_owned(), value1.to_owned()),
+        (key2.to_owned(), value2.to_owned()),
+        (key3.to_owned(), value3.to_owned()),
+        (key4.to_owned(), value4.to_owned()),
+    ];
+    let no_map: Option<&str> = None;
+    gps.request_map(&interests, no_map).await
 }
 
 #[wasm_bindgen]
 pub fn load_gps_from_string(input: &str) -> Gps {
+    console_error_panic_hook::set_once();
     let reader = std::io::Cursor::new(input);
     Gps::new(reader)
+}
+
+#[wasm_bindgen]
+pub fn gps_from_area(xmin: f64, ymin: f64, xmax: f64, ymax: f64) -> Gps {
+    Gps::from_area(vec![
+        Node::new(xmin, ymin),
+        Node::new(xmax, ymin),
+        Node::new(xmax, ymax),
+        Node::new(xmin, ymax),
+    ])
 }
 
 pub fn load_gps_from_file(path: &str) -> std::io::Result<Gps> {

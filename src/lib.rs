@@ -1,8 +1,12 @@
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
+use wasm_bindgen::prelude::*;
 
 mod gps;
-pub use gps::{load_gps_from_file, Gps};
+pub use gps::{
+    get_gps_content, get_polygon, gps_from_area, load_gps_from_file, load_gps_from_string,
+    request_map, Gps,
+};
 mod node;
 pub use node::Node;
 mod osm;
@@ -210,7 +214,8 @@ pub fn sanitize_ways(
     for street_ways in streets.values_mut() {
         let new_street_ways = street_ways
             .iter()
-            .flat_map(|way_id| ids_changes[way_id].iter())
+            .filter_map(|way_id| ids_changes.get(way_id))
+            .flatten()
             .copied()
             .collect::<Vec<_>>();
         *street_ways = new_street_ways;
@@ -264,3 +269,15 @@ pub fn group_ways_in_tiles(
     }
     tiles
 }
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    // Use `js_namespace` here to bind `console.log(..)` instead of just
+    // `log(..)`
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn log(s: &str) {}

@@ -55,13 +55,16 @@ pub fn map_and_interests_from_string(
     s: &str,
     key_values: &[(String, String)],
 ) -> (Map, Vec<(usize, Node)>) {
+    crate::log("map: parsing xml");
     let (nodes, mut ways, mut streets, interests) = crate::parse_osm_xml(s, key_values);
+    crate::log("map: building");
     let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
     let mut ways = crate::sanitize_ways(ways, &mut streets);
     crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
     crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
     let ways = crate::cut_ways_into_edges(ways, &mut streets);
     let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
+    crate::log("map: done");
     (
         Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE),
         interests,
