@@ -9,6 +9,9 @@ pub fn save_tiled_interests<W: Write>(
     side: f64,
     writer: &mut W,
 ) -> std::io::Result<()> {
+    if interests.is_empty() {
+        return Ok(());
+    }
     let mut tiled_interests: HashMap<u16, Vec<(usize, Node)>> = HashMap::new();
     let (xmin, xmax) = interests
         .iter()
@@ -26,8 +29,8 @@ pub fn save_tiled_interests<W: Write>(
 
     let first_tile_x = (xmin / side).floor() as usize;
     let first_tile_y = (ymin / side).floor() as usize;
-    let grid_width = (xmax / side).floor() as usize - first_tile_x;
-    let grid_height = (ymax / side).floor() as usize - first_tile_y;
+    let grid_width = 1usize.max((xmax / side).floor() as usize - first_tile_x);
+    let grid_height = 1usize.max((ymax / side).floor() as usize - first_tile_y);
     let xmin = (xmin / side).floor() * side;
     let ymin = (ymin / side).floor() * side;
 
