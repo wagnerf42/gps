@@ -9,6 +9,7 @@ pub use gps::{
 };
 mod node;
 pub use node::Node;
+mod geometry;
 mod osm;
 pub use osm::{parse_osm_xml, request};
 mod simplify;
