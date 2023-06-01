@@ -1,16 +1,11 @@
 use crate::TILE_BORDER_THICKNESS;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(PartialOrd, PartialEq, Debug, Clone, Copy)]
 pub struct Node {
     pub x: f64,
     pub y: f64,
 }
 
-impl PartialEq for Node {
-    fn eq(&self, other: &Self) -> bool {
-        self.x.to_bits() == other.x.to_bits() && self.y.to_bits() == other.y.to_bits()
-    }
-}
 impl Eq for Node {}
 impl std::hash::Hash for Node {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -22,6 +17,9 @@ impl std::hash::Hash for Node {
 impl Node {
     pub fn new(x: f64, y: f64) -> Self {
         Node { x, y }
+    }
+    pub fn is_almost(&self, other: &Self) -> bool {
+        crate::geometry::is_almost(self.x, other.x) && crate::geometry::is_almost(self.y, other.y)
     }
     pub fn squared_distance_to(&self, other: &Node) -> f64 {
         let dx = other.x - self.x;

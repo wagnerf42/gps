@@ -110,35 +110,3 @@ pub fn save_path<W: Write>(
     }
     Ok(())
 }
-
-// inflate a polygon around given path
-pub fn build_polygon(path: &[Node], thickness: f64) -> Vec<Node> {
-    path.windows(2)
-        .filter(|w| w[0] != w[1])
-        .flat_map(|segment| parallel_segment(segment.iter(), thickness))
-        .chain(
-            path.windows(2)
-                .rev()
-                .filter(|w| w[0] != w[1])
-                .flat_map(|segment| parallel_segment(segment.iter().rev(), thickness)),
-        )
-        .dedup()
-        .collect()
-}
-
-// return a parallel segment at distance "thickness"
-fn parallel_segment<'a, I: Iterator<Item = &'a Node>>(mut segment: I, thickness: f64) -> [Node; 2] {
-    let start = segment.next().unwrap();
-    let end = segment.next().unwrap();
-    let xdiff = end.x - start.x;
-    let ydiff = end.y - start.y;
-    let d = (xdiff * xdiff + ydiff * ydiff).sqrt();
-    let x = (-ydiff / d) * thickness;
-    let y = (xdiff / d) * thickness;
-    assert!(!x.is_nan());
-    assert!(!y.is_nan());
-    [
-        Node::new(start.x + x, start.y + y),
-        Node::new(end.x + x, end.y + y),
-    ]
-}

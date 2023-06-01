@@ -10,6 +10,7 @@ pub use gps::{
 mod node;
 pub use node::Node;
 mod geometry;
+pub use geometry::inflate_polyline;
 mod osm;
 pub use osm::{parse_osm_xml, request};
 mod simplify;
@@ -22,7 +23,7 @@ mod graph;
 mod svg;
 pub use svg::{save_svg, Svg, SvgW};
 mod gpx;
-pub use crate::gpx::{build_polygon, detect_sharp_turns, parse_gpx_points, request_map_from};
+pub use crate::gpx::{detect_sharp_turns, parse_gpx_points, request_map_from};
 mod interests;
 mod streets;
 pub use interests::save_tiled_interests;

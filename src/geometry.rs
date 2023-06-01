@@ -1,5 +1,9 @@
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    f64::consts::{FRAC_PI_2, PI},
+    io::Write,
+};
 
 use crate::Node;
 
@@ -71,6 +75,21 @@ impl Sub<&Node> for &Node {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Segment([Node; 2]);
 
+impl<W: Write> crate::Svg<W> for &[Segment] {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        self.iter().try_for_each(|s| {
+            writeln!(
+                writer,
+                "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='{color}' stroke-width='0.1%'/>",
+                s.start().x,
+                s.start().y,
+                s.end().x,
+                s.end().y
+            )
+        })
+    }
+}
+
 impl Segment {
     pub fn new(start: Node, end: Node) -> Self {
         Segment([start, end])
@@ -83,6 +102,29 @@ impl Segment {
     }
     pub fn end(&self) -> &Node {
         &self.0[1]
+    }
+
+    /// return a parallel segment at distance "thickness"
+    pub fn parallel_segment(&self, thickness: f64) -> Segment {
+        let xdiff = self.end().x - self.start().x;
+        let ydiff = self.end().y - self.start().y;
+        let d = (xdiff * xdiff + ydiff * ydiff).sqrt();
+        let x = (-ydiff / d) * thickness;
+        let y = (xdiff / d) * thickness;
+        assert!(!x.is_nan());
+        assert!(!y.is_nan());
+        Segment::new(
+            Node::new(self.start().x + x, self.start().y + y),
+            Node::new(self.end().x + x, self.end().y + y),
+        )
+    }
+
+    /// Intersect with horizontal line at given y.
+    /// Returns only x coordinate of intersection.
+    /// Precondition: we are not a quasi-horizontal segment.
+    pub fn horizontal_line_intersection(&self, y: f64) -> f64 {
+        let alpha = (y - self.start().y) / (self.end().y - self.start().y);
+        alpha.mul_add(self.end().x - self.start().x, self.start().x)
     }
 
     /// Intersects two segments.
@@ -115,6 +157,17 @@ impl Segment {
 
 #[derive(Debug, Clone)]
 pub struct Polygon(Vec<Node>);
+
+impl<W: Write> crate::Svg<W> for Polygon {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        write!(writer, "<polygon points=\"")?;
+
+        self.0
+            .iter()
+            .try_for_each(|n| write!(writer, " {},{}", n.x, n.y,))?;
+        writeln!(writer, "\" fill=\"{}\" opacity=\"0.5\"/>", color)
+    }
+}
 
 impl Polygon {
     fn new(points: Vec<Node>) -> Self {
@@ -173,8 +226,12 @@ fn find_segments_intersections(segments: &[Segment]) -> HashMap<&Segment, Vec<No
         .tuple_combinations()
         .filter_map(|(s1, s2)| s1.intersection_with(s2).map(|i| (s1, s2, i)))
         .for_each(|(s1, s2, i)| {
-            intersections.entry(s1).or_default().push(i);
-            intersections.entry(s2).or_default().push(i);
+            if !(i.is_almost(s1.start()) || i.is_almost(s1.end())) {
+                intersections.entry(s1).or_default().push(i);
+            }
+            if !(i.is_almost(s2.start()) || i.is_almost(s2.end())) {
+                intersections.entry(s2).or_default().push(i);
+            }
         });
     intersections
 }
@@ -228,9 +285,9 @@ fn build_polygon(
     remaining_segments: &mut HashSet<&Segment>,
 ) -> Option<Polygon> {
     // let mut seen_points = HashSet::new();
-    let starting_point = start_segment.start;
+    let starting_point = *start_segment.start();
     let mut previous_point = starting_point;
-    let mut current_point = start_segment.end;
+    let mut current_point = *start_segment.end();
     let mut polygon_points = vec![starting_point];
     remaining_segments.remove(start_segment);
     //follow edge until we come back to our starting point
@@ -273,31 +330,91 @@ fn find_next_point(
         .unwrap()
 }
 
-fn inflate_polyline(path: &[Node]) -> Polygon {
+pub fn inflate_polyline(path: &[Node], thickness: f64) -> Vec<Node> {
+    eprintln!("inflating");
+    let (xmin, xmax) = path.iter().map(|p| p.x).minmax().into_option().unwrap();
+
+    let (ymin, ymax) = path.iter().map(|p| p.y).minmax().into_option().unwrap();
+
+    crate::save_svg("path.svg", (xmin, ymin, xmax, ymax), [&path as crate::SvgW]).unwrap();
+    eprintln!("nodes are {path:?}");
+
     let segments = path
         .iter()
         .tuple_windows()
         .map(|(p1, p2)| Segment::new(*p1, *p2))
         .collect::<Vec<_>>();
 
-    let mut around_path = segments
+    let mut around_path: Vec<Segment> = path
         .iter()
-        .map(|s| s.parallel_segment(1.0))
-        .chain(
-            segments
-                .iter()
-                .rev()
-                .map(|s| s.reverse().parallel_segment(1.0)),
-        )
-        .collect::<Vec<_>>();
-    let mut mid_segments = around_path
-        .iter()
-        .zip(around_path.iter().cycle().skip(1))
-        .map(|(s1, s2)| Segment::new(s1.end, s2.start))
-        .collect::<Vec<_>>();
+        .chain(path.iter().rev().skip(1))
+        .chain(std::iter::once(&path[1]))
+        .dedup()
+        .tuple_windows()
+        .flat_map(|(p1, p2, p3)| {
+            let s1 = Segment::new(*p1, *p2).parallel_segment(thickness);
+            let s2 = Segment::new(*p2, *p3).parallel_segment(thickness);
+            // if let Some(i) = s1.intersection_with(&s2) {
+            //     let s = vec![Segment::new(s1.start, i), Segment::new(i, s2.end)];
+            //     tycat!(s1, s2, p1, p2, p3, s);
+            //     return s;
+            // } // TODO: we could uncomment it but not as is because intersections impact next triplet
+            let v1 = s1.end() - p2;
+            let v2 = s2.start() - p2;
+            let mut a1 = v1.y().atan2(v1.x());
+            let mut a2 = v2.y().atan2(v2.x());
 
-    around_path.append(&mut mid_segments);
+            let opposite_v = p3 - p2;
+            let opposite_angle = opposite_v.y().atan2(opposite_v.x());
+
+            if if p1 == p3 {
+                if is_almost(FRAC_PI_2, opposite_angle) {
+                    a1 = 0.;
+                    a2 = -PI;
+                    false
+                } else if is_almost(-FRAC_PI_2, opposite_angle) {
+                    a1 = PI;
+                    a2 = 0.;
+                    false
+                } else {
+                    (-FRAC_PI_2 < opposite_angle) && (opposite_angle < FRAC_PI_2)
+                }
+            } else {
+                (a2 - a1).abs() > PI
+            } {
+                a1 = (a1 + 2. * PI) % (2. * PI);
+                a2 = (a2 + 2. * PI) % (2. * PI);
+            }
+
+            assert!((a2 - a1).abs() <= PI + 0.00001);
+            let points = (1..10)
+                .map(|c| (a2 * c as f64 + a1 * (10. - c as f64)) / 10.)
+                .map(|a| Node::new(a.cos() * thickness + p2.x, a.sin() * thickness + p2.y));
+            let s = std::iter::once(*s1.end())
+                .chain(points)
+                .chain(std::iter::once(*s2.start()))
+                .dedup()
+                .tuple_windows()
+                .map(|(p1, p2)| Segment::new(p1, p2));
+
+            let full_s = std::iter::once(s1).chain(s).collect::<Vec<_>>();
+            // tycat!(full_s, p1, p2, p3, s1, s2);
+            full_s
+        })
+        .collect();
+    eprintln!(
+        "we have {} segments, computing small ones",
+        around_path.len()
+    );
+
     let small_segments = intersect_segments(&around_path);
+    crate::save_svg(
+        "small.svg",
+        (xmin, ymin, xmax, ymax),
+        [&small_segments.as_slice() as crate::SvgW],
+    )
+    .unwrap();
+    eprintln!("building polygons");
 
     let mut polygons = build_polygons(&small_segments);
 
@@ -309,7 +426,24 @@ fn inflate_polyline(path: &[Node]) -> Polygon {
         .map(|(i, _)| i)
         .unwrap();
     let mut outer_poly = polygons.swap_remove(outer_poly_index);
+    // eprintln!("remaining polygons: {}", polygons.len());
+
+    // crate::save_svg(
+    //     "outer.svg",
+    //     (xmin, ymin, xmax, ymax),
+    //     [
+    //         &path as crate::SvgW,
+    //         &outer_poly as crate::SvgW,
+    //         &polygons[0] as crate::SvgW,
+    //         &polygons[1] as crate::SvgW,
+    //         &polygons[2] as crate::SvgW,
+    //         &polygons[3] as crate::SvgW,
+    //     ],
+    // )
+    // .unwrap();
+
     destroy_holes(&mut outer_poly, polygons);
+    outer_poly.0
 }
 
 fn destroy_holes(outer_poly: &mut Polygon, mut holes: Vec<Polygon>) {
@@ -324,16 +458,14 @@ fn eat_hole(outer_poly: &mut Polygon, hole: Polygon) {
     let (segment_index, nearest_segment_point, _) = polygon_segments(outer_poly)
         .enumerate()
         .filter_map(|(i, s)| {
-            if is_almost(s.start.y, s.end.y) {
+            if is_almost(s.start().y, s.end().y)
+                || s.start().y.partial_cmp(&p.y).unwrap() == s.end().y.partial_cmp(&p.y).unwrap()
+            {
                 None
             } else {
-                if s.start.y.partial_cmp(&p.y).unwrap() == s.end.y.partial_cmp(&p.y).unwrap() {
-                    None
-                } else {
-                    let x = s.horizontal_line_intersection(p.y);
-                    let distance = (x - p.x).abs();
-                    Some((i, Node::new(x, p.y), distance))
-                }
+                let x = s.horizontal_line_intersection(p.y);
+                let distance = (x - p.x).abs();
+                Some((i, Node::new(x, p.y), distance))
             }
         })
         .min_by(|(_, _, d1), (_, _, d2)| d1.partial_cmp(d2).unwrap())

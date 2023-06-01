@@ -114,7 +114,7 @@ impl Gps {
                 .unwrap()
         };
         println!("we now have {} points", rp.len());
-        let map_polygon = crate::build_polygon(&rp, crate::SIDE * 2.); // two tiles on each side
+        let map_polygon = crate::inflate_polyline(&rp, crate::SIDE * 2.); // two tiles on each side
         Gps {
             waypoints: Some(waypoints),
             path: Some(rp),
