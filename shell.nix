@@ -5,6 +5,7 @@ let
     { };
 in pkgs.mkShell {
   buildInputs = with pkgs; [
+  wasm-bindgen-cli
     wasm-pack
     pkgconfig
     openssl
@@ -16,7 +17,8 @@ in pkgs.mkShell {
     # flow
 
     (with fenix;
-      combine (with beta; [
+      # combine (with beta; [
+     combine (with latest; [
         cargo
         clippy-preview
         latest.rust-src
