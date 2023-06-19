@@ -18,9 +18,9 @@ impl Node {
     pub fn new(x: f64, y: f64) -> Self {
         Node { x, y }
     }
-    pub fn is_almost(&self, other: &Self) -> bool {
-        crate::geometry::is_almost(self.x, other.x) && crate::geometry::is_almost(self.y, other.y)
-    }
+    // pub fn is_almost(&self, other: &Self) -> bool {
+    //     crate::geometry::is_almost(self.x, other.x) && crate::geometry::is_almost(self.y, other.y)
+    // }
     pub fn squared_distance_to(&self, other: &Node) -> f64 {
         let dx = other.x - self.x;
         let dy = other.y - self.y;

@@ -9,8 +9,8 @@ pub use gps::{
 };
 mod node;
 pub use node::Node;
-mod geometry;
-pub use geometry::inflate_polyline;
+// mod geometry;
+// pub use geometry::inflate_polyline;
 mod osm;
 pub use osm::{parse_osm_xml, request};
 mod simplify;

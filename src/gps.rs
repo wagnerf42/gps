@@ -114,7 +114,7 @@ impl Gps {
                 .unwrap()
         };
         println!("we now have {} points", rp.len());
-        let map_polygon = crate::inflate_polyline(&rp, crate::SIDE * 2.); // two tiles on each side
+        let map_polygon = inflate_polyline(&rp, crate::SIDE * 2.); // two tiles on each side
         Gps {
             waypoints: Some(waypoints),
             path: Some(rp),
@@ -219,6 +219,11 @@ impl Gps {
                 .collect::<HashSet<_>>()
         };
         map.keep_tiles(&tiles_wanted);
+        self.interests.retain(|(_, p)| {
+            let tile_x = (p.x / crate::SIDE).floor() as usize - map.first_tile.0;
+            let tile_y = (p.y / crate::SIDE).floor() as usize - map.first_tile.1;
+            tiles_wanted.contains(&(tile_x, tile_y))
+        });
 
         if let Some(waypoints) = &self.waypoints {
             self.interests
@@ -245,4 +250,22 @@ impl Gps {
 
         Ok(())
     }
+}
+
+fn inflate_polyline(rp: &[Node], side: f64) -> Vec<Node> {
+    use geo_types::MultiPoint;
+    let displaced_points: MultiPoint = rp
+        .iter()
+        .flat_map(|p| {
+            (0..8).map(move |a| ((a as f64).cos() * side + p.x, (a as f64).sin() * side + p.y))
+        })
+        .collect::<Vec<(f64, f64)>>()
+        .into();
+
+    use geo::KNearestConcaveHull;
+    let poly = displaced_points.0.k_nearest_concave_hull(10);
+    poly.exterior()
+        .points()
+        .map(|p| Node::new(p.x(), p.y()))
+        .collect()
 }
