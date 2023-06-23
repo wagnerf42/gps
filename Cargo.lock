@@ -586,6 +586,7 @@ checksum = "ad0a93d233ebf96623465aad4046a8d3aa4da22d4f4beba5388838c8a434bbb4"
 name = "gps"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "console_error_panic_hook",
  "futures",
  "geo",

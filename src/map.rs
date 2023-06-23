@@ -13,7 +13,7 @@ pub const SIDE: f64 = 1. / 500.; // excellent value
 
 use crate::{CNodeId, CWayId, Node, NodeId, TileKey, WayId};
 
-pub(crate) enum BlockType {
+pub enum BlockType {
     Tiles,
     Streets,
     Path,
