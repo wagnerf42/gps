@@ -1,5 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use gps::Node;
+use gps::{save_svg, Node, Svg, SvgW};
+use itertools::Itertools;
 use std::io::Read;
 
 #[derive(Debug)]
@@ -33,6 +34,13 @@ impl Dimensions {
             start_coordinates,
             side,
         })
+    }
+    fn bounding_box(&self) -> (f64, f64, f64, f64) {
+        let xmin = self.first_tile.0 as f64 * self.side;
+        let ymin = self.first_tile.1 as f64 * self.side;
+        let xmax = xmin + self.side * self.grid_size.0 as f64;
+        let ymax = ymin + self.side * self.grid_size.1 as f64;
+        (xmin, ymin, xmax, ymax)
     }
 }
 
@@ -191,9 +199,47 @@ impl Map {
     }
 }
 
+impl<W: std::io::Write> Svg<W> for Map {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        let ends = self
+            .tiles_offsets
+            .non_empty_tiles_ends
+            .iter()
+            .map(|o| o * self.tiles_offsets.entry_size);
+        let starts = std::iter::once(0).chain(ends.clone());
+        let tiles = self.tiles_offsets.non_empty_tiles.iter();
+        let width = self.dimensions.grid_size.0;
+        let side = self.dimensions.side;
+        writeln!(writer, "<g stroke='grey' stroke-width='0.1%'>")?;
+        for (tile, (start, end)) in tiles.zip(starts.zip(ends)) {
+            let tile_x = tile % width;
+            let tile_y = tile / width;
+            let absolute_tile_x = self.dimensions.first_tile.0 + tile_x;
+            let absolute_tile_y = self.dimensions.first_tile.1 + tile_y;
+            // eprintln!("tile {tile} ({tile_x}/{tile_y})  ({absolute_tile_x}/{absolute_tile_y})starts at {start} and ends at {end}");
+            for (start_x, start_y, end_x, end_y) in self.binary[start..end].iter().tuples() {
+                let x1 = ((*start_x as f64) / 255. + absolute_tile_x as f64) * side;
+                let x2 = ((*end_x as f64) / 255. + absolute_tile_x as f64) * side;
+                let y1 = ((*start_y as f64) / 255. + absolute_tile_y as f64) * side;
+                let y2 = ((*end_y as f64) / 255. + absolute_tile_y as f64) * side;
+                // eprintln!("<line x1='{x1}' y1='{y1}' ({start_x}/{start_y}) x2='{x2}' y2='{y2}' ({end_x}/{end_y})/>");
+                writeln!(writer, "<line x1='{x1}' y1='{y1}' x2='{x2}' y2='{y2}'/>")?;
+            }
+        }
+        writeln!(writer, "</g>")?;
+        Ok(())
+    }
+}
+
 fn main() {
     if let Some(filename) = std::env::args().nth(1) {
         let gps = Gps::new(&filename).unwrap();
+        save_svg(
+            "debug.svg",
+            gps.maps[1].dimensions.bounding_box(),
+            [&gps.maps[1] as SvgW],
+        )
+        .unwrap();
     } else {
         println!("give a filename");
     }
