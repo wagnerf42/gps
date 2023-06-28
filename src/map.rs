@@ -352,6 +352,37 @@ impl Map {
         offset / 2
     }
 
+    // discard empty tiles on border
+    pub fn fit_map(&mut self) {
+        let (xmin, xmax) = self
+            .non_empty_tiles()
+            .map(|(x, _)| x)
+            .minmax()
+            .into_option()
+            .unwrap();
+        let (ymin, ymax) = self
+            .non_empty_tiles()
+            .map(|(_, y)| y)
+            .minmax()
+            .into_option()
+            .unwrap();
+
+        let mut new_prefix = Vec::new();
+        let mut old_prefix = self.tiles_sizes_prefix.iter();
+        for y in 0..self.grid_size.1 {
+            for x in 0..self.grid_size.0 {
+                let tile_end = *old_prefix.next().unwrap();
+                if x >= xmin && x <= xmax && y >= ymin && y <= ymax {
+                    new_prefix.push(tile_end);
+                }
+            }
+        }
+
+        self.tiles_sizes_prefix = new_prefix;
+        self.grid_size = (xmax + 1 - xmin, ymax + 1 - ymin);
+        self.first_tile = (self.first_tile.0 + xmin, self.first_tile.1 + ymin);
+    }
+
     // discard all tiles which are not the ones we want.
     pub fn keep_tiles(&mut self, kept_tiles: &HashSet<(usize, usize)>) {
         let mut new_binary_ways: Vec<u8> = Vec::new();
