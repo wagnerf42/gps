@@ -219,12 +219,12 @@ impl Gps {
                 .collect::<HashSet<_>>()
         };
         map.keep_tiles(&tiles_wanted);
-        map.fit_map();
         self.interests.retain(|(_, p)| {
             let tile_x = (p.x / crate::SIDE).floor() as usize - map.first_tile.0;
             let tile_y = (p.y / crate::SIDE).floor() as usize - map.first_tile.1;
             tiles_wanted.contains(&(tile_x, tile_y))
         });
+        map.fit_map();
 
         if let Some(waypoints) = &self.waypoints {
             self.interests

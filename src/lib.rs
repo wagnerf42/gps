@@ -41,7 +41,7 @@ pub struct CWayId {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct CNodeId {
     tile_number: u16,
-    local_node_id: u8,
+    local_node_id: u16,
 }
 
 pub const TILE_BORDER_THICKNESS: f64 = 1. / 111_200.;

@@ -305,12 +305,12 @@ impl Map {
     fn way(&self, way_id: CWayId) -> [GNode; 2] {
         let id1 = CNodeId {
             tile_number: way_id.tile_number,
-            local_node_id: 2 * way_id.local_way_id,
+            local_node_id: 2 * way_id.local_way_id as u16,
         };
 
         let id2 = CNodeId {
             tile_number: way_id.tile_number,
-            local_node_id: 2 * way_id.local_way_id + 1,
+            local_node_id: 2 * way_id.local_way_id as u16 + 1,
         };
         [
             GNode {
