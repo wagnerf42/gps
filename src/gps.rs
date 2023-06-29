@@ -6,8 +6,11 @@ use std::{
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    detect_sharp_turns, gpx::save_path, parse_gpx_points, save_svg, save_tiled_interests,
-    simplify_path, svg::UniColorNodes, Map, Node, SvgW,
+    detect_sharp_turns,
+    gpx::save_path,
+    parse_gpx_points, save_svg, save_tiled_interests, simplify_path,
+    svg::{save_svg_to_writer, UniColorNodes},
+    Map, Node, Svg, SvgW,
 };
 
 #[wasm_bindgen]
@@ -20,6 +23,44 @@ pub struct Gps {
 }
 
 #[wasm_bindgen]
+pub fn get_gps_map_svg(gps: &Gps) -> String {
+    let mut svg_string: Vec<u8> = Vec::new();
+    let bounding_box = gps
+        .map
+        .as_ref()
+        .map(|m| m.bounding_box())
+        .unwrap_or_else(|| {
+            gps.path
+                .as_ref()
+                .map(|p| {
+                    let (xmin, xmax) = p.iter().map(|n| n.x).minmax().into_option().unwrap();
+                    let (ymin, ymax) = p.iter().map(|n| n.y).minmax().into_option().unwrap();
+                    (xmin, ymin, xmax, ymax)
+                })
+                .unwrap()
+        });
+    let path_slice = if let Some(p) = &gps.path {
+        p.as_slice()
+    } else {
+        &[]
+    };
+    save_svg_to_writer(
+        &mut svg_string,
+        bounding_box,
+        gps.map
+            .as_ref()
+            .map(|m| m as &dyn Svg<_>)
+            .into_iter()
+            .chain(std::iter::once(&path_slice as &dyn Svg<_>))
+            .chain(std::iter::once(&UniColorNodes(
+                gps.interests.iter().map(|(_, n)| *n).collect::<Vec<_>>(),
+            ) as &dyn Svg<_>)),
+    )
+    .unwrap();
+    String::from_utf8(svg_string).unwrap()
+}
+
+#[wasm_bindgen]
 pub fn get_polygon(gps: &Gps) -> Vec<f64> {
     gps.map_polygon.iter().flat_map(|n| [n.y, n.x]).collect()
 }
@@ -28,7 +69,7 @@ pub fn get_polygon(gps: &Gps) -> Vec<f64> {
 pub fn get_polyline(gps: &Gps) -> Vec<f64> {
     gps.path
         .as_ref()
-        .map(|p| p.iter().flat_map(|n| [n.x, n.y]).collect::<Vec<_>>())
+        .map(|p| p.iter().flat_map(|n| [n.y, n.x]).collect::<Vec<_>>())
         .unwrap_or_default()
 }
 

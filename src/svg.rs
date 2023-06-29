@@ -114,11 +114,19 @@ pub fn save_svg<
     bounding_box: (f64, f64, f64, f64),
     content: S,
 ) -> std::io::Result<()> {
-    let (xmin, ymin, xmax, ymax) = bounding_box;
     let mut writer = std::io::BufWriter::new(std::fs::File::create(path)?);
+    save_svg_to_writer(&mut writer, bounding_box, content)
+}
+
+pub fn save_svg_to_writer<'a, W: Write + 'a, S: IntoIterator<Item = &'a dyn Svg<W>>>(
+    writer: &mut W,
+    bounding_box: (f64, f64, f64, f64),
+    content: S,
+) -> std::io::Result<()> {
+    let (xmin, ymin, xmax, ymax) = bounding_box;
 
     writeln!(
-        &mut writer,
+        writer,
         "<svg width='800' height='600' viewBox='{} {} {} {}'>",
         xmin,
         ymin,
@@ -126,7 +134,7 @@ pub fn save_svg<
         ymax - ymin
     )?;
     writeln!(
-        &mut writer,
+        writer,
         "<rect fill='white' x='{}' y='{}' width='{}' height='{}'/>",
         xmin,
         ymin,
@@ -135,16 +143,16 @@ pub fn save_svg<
     )?;
 
     writeln!(
-        &mut writer,
+        writer,
         "<g transform='translate(0, {}) scale(1,-1)'>",
         ymin + ymax
     )?;
     content
         .into_iter()
         .zip(COLORS.iter().cycle())
-        .try_for_each(|(c, color)| c.write_svg(&mut writer, color))?;
+        .try_for_each(|(c, color)| c.write_svg(writer, color))?;
 
-    writeln!(&mut writer, "</g></svg>",)?;
+    writeln!(writer, "</g></svg>",)?;
 
     Ok(())
 }
