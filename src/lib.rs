@@ -264,7 +264,7 @@ pub fn group_ways_in_tiles(
             .tiles(side)
             .collect::<HashSet<_>>()
             .intersection(&nodes[*n2].tiles(side).collect::<HashSet<_>>())
-            .next()
+            .min() // this way we are deterministic
             .copied()
             .unwrap();
         tiles.entry(tile_id).or_default().push(way_id);

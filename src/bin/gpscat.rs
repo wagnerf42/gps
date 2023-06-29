@@ -210,7 +210,11 @@ impl<W: std::io::Write> Svg<W> for Map {
         let tiles = self.tiles_offsets.non_empty_tiles.iter();
         let width = self.dimensions.grid_size.0;
         let side = self.dimensions.side;
-        writeln!(writer, "<g stroke='grey' stroke-width='0.1%'>")?;
+        let [red, green, blue] = self.color_array;
+        writeln!(
+            writer,
+            "<g stroke='rgb({red}, {green}, {blue})' stroke-width='0.1%'>"
+        )?;
         for (tile, (start, end)) in tiles.zip(starts.zip(ends)) {
             let tile_x = tile % width;
             let tile_y = tile / width;
@@ -234,12 +238,14 @@ impl<W: std::io::Write> Svg<W> for Map {
 fn main() {
     if let Some(filename) = std::env::args().nth(1) {
         let gps = Gps::new(&filename).unwrap();
-        save_svg(
-            "debug.svg",
-            gps.maps[1].dimensions.bounding_box(),
-            [&gps.maps[1] as SvgW],
-        )
-        .unwrap();
+        let bbox = gps.maps.last().unwrap().dimensions.bounding_box();
+        save_svg("debug.svg", bbox, gps.maps.iter().map(|m| m as SvgW)).unwrap();
+        std::process::Command::new("kitty")
+            .arg("+kitten")
+            .arg("icat")
+            .arg("debug.svg")
+            .status()
+            .expect("running kitty failed");
     } else {
         println!("give a filename");
     }

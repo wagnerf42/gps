@@ -428,10 +428,10 @@ fn compress_tile(
 ) -> Vec<[[u8; 2]; 2]> {
     let mut compressed_ways = Vec::new();
 
-    eprintln!(
-        "compressing tile {tile_x}/{tile_y} ({} ways)",
-        tile_ways.len()
-    );
+    // eprintln!(
+    //     "compressing tile {tile_x}/{tile_y} ({} ways)",
+    //     tile_ways.len()
+    // );
     for (local_way_id, global_way_id) in tile_ways.iter().enumerate() {
         let mut new_way = Vec::new();
         for node in ways[*global_way_id].iter().map(|&i| &nodes[i]) {
