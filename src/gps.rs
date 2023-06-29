@@ -25,6 +25,14 @@ pub fn get_polygon(gps: &Gps) -> Vec<f64> {
 }
 
 #[wasm_bindgen]
+pub fn get_polyline(gps: &Gps) -> Vec<f64> {
+    gps.path
+        .as_ref()
+        .map(|p| p.iter().flat_map(|n| [n.x, n.y]).collect::<Vec<_>>())
+        .unwrap_or_default()
+}
+
+#[wasm_bindgen]
 pub fn get_gps_content(gps: &Gps) -> Vec<u8> {
     let mut binary: Vec<u8> = Vec::new();
     gps.write_gps(&mut binary).expect("failed writing binary");
@@ -114,7 +122,23 @@ impl Gps {
                 .unwrap()
         };
         println!("we now have {} points", rp.len());
-        let map_polygon = inflate_polyline(&rp, crate::SIDE * 2.); // two tiles on each side
+        let (mut xmin, mut xmax) = rp.iter().map(|p| p.x).minmax().into_option().unwrap();
+        let (mut ymin, mut ymax) = rp.iter().map(|p| p.y).minmax().into_option().unwrap();
+        let map_polygon = if (xmax - xmin) * (ymax - ymin) < 0.2 * 0.2 {
+            // osm should be able to answer this full rectangle
+            xmin -= crate::SIDE * 2.;
+            ymin -= crate::SIDE * 2.;
+            xmax += crate::SIDE * 2.;
+            ymax += crate::SIDE * 2.;
+            vec![
+                Node::new(xmin, ymin),
+                Node::new(xmin, ymax),
+                Node::new(xmax, ymax),
+                Node::new(xmax, ymin),
+            ]
+        } else {
+            inflate_polyline(&rp, crate::SIDE * 2.) // two tiles on each side
+        };
         Gps {
             waypoints: Some(waypoints),
             path: Some(rp),
