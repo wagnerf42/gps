@@ -381,6 +381,10 @@ impl Map {
         self.tiles_sizes_prefix = new_prefix;
         self.grid_size = (xmax + 1 - xmin, ymax + 1 - ymin);
         self.first_tile = (self.first_tile.0 + xmin, self.first_tile.1 + ymin);
+        self.start_coordinates = (
+            self.first_tile.0 as f64 * self.side,
+            self.first_tile.1 as f64 * self.side,
+        );
     }
 
     // discard all tiles which are not the ones we want.
