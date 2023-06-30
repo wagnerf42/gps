@@ -11,6 +11,8 @@ struct Dimensions {
     side: f64,
 }
 
+const COLORS: [&str; 5] = ["black", "red", "blue", "cyan", "green"];
+
 impl Dimensions {
     fn new<R: Read>(reader: &mut R) -> std::io::Result<Dimensions> {
         let first_tile = (
@@ -72,6 +74,7 @@ impl Gps {
                 }
                 3 => {
                     // interests
+                    eprintln!("we have some interests");
                     gps.interests = Some(Interests::new(&mut reader)?);
                 }
                 _ => panic!("invalid block type {block_type}"),
@@ -198,6 +201,37 @@ impl Map {
         })
     }
 }
+impl<W: std::io::Write> Svg<W> for Interests {
+    fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
+        let ends = self
+            .tiles_offsets
+            .non_empty_tiles_ends
+            .iter()
+            .map(|o| o * self.tiles_offsets.entry_size);
+        let starts = std::iter::once(0).chain(ends.clone());
+        let tiles = self.tiles_offsets.non_empty_tiles.iter();
+        let width = self.dimensions.grid_size.0;
+        let side = self.dimensions.side;
+
+        for (tile, (start, end)) in tiles.zip(starts.zip(ends)) {
+            let tile_x = tile % width;
+            let tile_y = tile / width;
+            let absolute_tile_x = self.dimensions.first_tile.0 + tile_x;
+            let absolute_tile_y = self.dimensions.first_tile.1 + tile_y;
+            for (interest, x, y) in self.binary_interests[start..end].iter().tuples() {
+                let x = ((*x as f64) / 255. + absolute_tile_x as f64) * side;
+                let y = ((*y as f64) / 255. + absolute_tile_y as f64) * side;
+                // eprintln!("<line x1='{x1}' y1='{y1}' ({start_x}/{start_y}) x2='{x2}' y2='{y2}' ({end_x}/{end_y})/>");
+                writeln!(
+                    writer,
+                    "<circle cx='{x}' cy='{y}' r='0.1%' fill='{}'/>",
+                    COLORS[*interest as usize]
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
 
 impl<W: std::io::Write> Svg<W> for Map {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
@@ -239,7 +273,15 @@ fn main() {
     if let Some(filename) = std::env::args().nth(1) {
         let gps = Gps::new(&filename).unwrap();
         let bbox = gps.maps.last().unwrap().dimensions.bounding_box();
-        save_svg("debug.svg", bbox, gps.maps.iter().map(|m| m as SvgW)).unwrap();
+        save_svg(
+            "debug.svg",
+            bbox,
+            gps.maps
+                .iter()
+                .map(|m| m as SvgW)
+                .chain(gps.interests.as_ref().into_iter().map(|i| i as SvgW)),
+        )
+        .unwrap();
         std::process::Command::new("kitty")
             .arg("+kitten")
             .arg("icat")
