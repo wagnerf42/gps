@@ -29,8 +29,8 @@ mod streets;
 pub use interests::save_tiled_interests;
 
 pub type TileKey = (usize, usize);
-pub type WayId = usize;
-pub type NodeId = usize;
+pub type WayId = u64;
+pub type NodeId = u64;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct CWayId {
@@ -55,7 +55,7 @@ pub fn rename_nodes(
     for way in ways.values_mut() {
         for node in way {
             let new_id = new_ids.entry(*node).or_insert_with(|| {
-                let id = renamed_nodes.len();
+                let id = renamed_nodes.len() as u64;
                 renamed_nodes.push(nodes[node]);
                 id
             });
@@ -71,7 +71,7 @@ pub fn cut_segments_on_tiles(nodes: &mut Vec<Node>, ways: &mut [Vec<NodeId>], si
     let mut nodes_ids = nodes
         .iter()
         .enumerate()
-        .map(|(i, n)| (*n, i))
+        .map(|(i, n)| (*n, i as u64))
         .collect::<HashMap<_, _>>();
     for way in ways.iter_mut() {
         cut_way_segments_on_tiles(nodes, &mut nodes_ids, way, side)
@@ -86,8 +86,8 @@ pub fn cut_way_segments_on_tiles(
 ) {
     let mut new_way = Vec::new();
     for (i1, i2) in way.iter().copied().tuple_windows() {
-        let n1 = nodes[i1];
-        let n2 = nodes[i2];
+        let n1 = nodes[i1 as usize];
+        let n2 = nodes[i2 as usize];
 
         let mut new_nodes = std::iter::once(n1)
             .chain(
@@ -107,7 +107,7 @@ pub fn cut_way_segments_on_tiles(
         });
         for new_node in new_nodes.into_iter().dedup() {
             let new_id = *nodes_ids.entry(new_node).or_insert_with(|| {
-                let id = nodes.len();
+                let id = nodes.len() as u64;
                 nodes.push(new_node);
                 id
             });
@@ -130,27 +130,27 @@ pub fn simplify_ways(
     streets: &mut HashMap<String, Vec<WayId>>,
 ) {
     let mut new_nodes = HashMap::new();
-    let mut new_ways = Vec::new();
+    let mut new_ways: Vec<Vec<NodeId>> = Vec::new();
     let mut new_nodes_vec = Vec::new();
-    let mut ids_changes: HashMap<usize, usize> = HashMap::new();
-    for (old_way_id, way) in ways.iter().enumerate() {
+    let mut ids_changes: HashMap<WayId, WayId> = HashMap::new();
+    for (old_way_id, way) in ways.iter().enumerate().map(|(i, w)| (i as u64, w)) {
         assert!(way.len() > 1);
-        let way_nodes = way.iter().map(|id| nodes[*id]).collect::<Vec<_>>();
+        let way_nodes = way.iter().map(|id| nodes[*id as usize]).collect::<Vec<_>>();
         let simpler_way_nodes = simplify::simplify_path(&way_nodes, 0.00015);
         let new_way = simpler_way_nodes
             .into_iter()
             .map(|new_node| {
                 let id = *new_nodes.entry(new_node).or_insert_with(|| {
-                    let id = new_nodes_vec.len();
+                    let id = new_nodes_vec.len() as u64;
                     new_nodes_vec.push(new_node);
                     id
                 });
                 id
             })
             .dedup()
-            .collect::<Vec<_>>();
+            .collect::<Vec<NodeId>>();
         if new_way.len() > 1 {
-            let new_way_id = new_ways.len();
+            let new_way_id = new_ways.len() as u64;
             new_ways.push(new_way); // very small loops might disappear
             ids_changes.insert(old_way_id, new_way_id);
         }
@@ -169,7 +169,7 @@ pub fn simplify_ways(
 }
 
 fn compute_node_degrees(ways: &HashMap<WayId, Vec<NodeId>>) -> HashMap<NodeId, usize> {
-    let mut degrees: HashMap<usize, usize> = HashMap::new();
+    let mut degrees: HashMap<NodeId, usize> = HashMap::new();
     for id in ways.values().flat_map(|way| way.iter()).copied() {
         *degrees.entry(id).or_default() += 1;
     }
@@ -182,13 +182,16 @@ fn compute_node_degrees(ways: &HashMap<WayId, Vec<NodeId>>) -> HashMap<NodeId, u
 pub fn sanitize_ways(
     ways: HashMap<WayId, Vec<NodeId>>,
     streets: &mut HashMap<String, Vec<WayId>>,
-) -> Vec<Vec<usize>> {
+) -> Vec<Vec<NodeId>> {
     let degrees = compute_node_degrees(&ways);
     let mut new_ways = Vec::new();
-    let mut ids_changes: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut ids_changes: HashMap<WayId, Vec<WayId>> = HashMap::new();
 
     // first, cut the ways
     for (way_id, way) in ways {
+        if way.is_empty() {
+            crate::log(&format!("strange empty way {way_id}"));
+        }
         for small_way in way.into_iter().peekable().batching(|it| {
             let mut small_way = it.next().into_iter().collect::<Vec<_>>();
             while let Some(id) = it.peek() {
@@ -205,7 +208,7 @@ pub fn sanitize_ways(
                 Some(small_way)
             }
         }) {
-            let new_id = new_ways.len();
+            let new_id = new_ways.len() as u64;
             assert!(small_way.len() > 1);
             new_ways.push(small_way);
             ids_changes.entry(way_id).or_default().push(new_id);
@@ -231,10 +234,10 @@ pub fn cut_ways_into_edges(
     streets: &mut HashMap<String, Vec<WayId>>,
 ) -> Vec<[NodeId; 2]> {
     let mut new_ways = Vec::new();
-    let mut ids_changes: HashMap<usize, Vec<usize>> = HashMap::new();
-    for (old_way_id, way) in ways.into_iter().enumerate() {
+    let mut ids_changes: HashMap<WayId, Vec<WayId>> = HashMap::new();
+    for (old_way_id, way) in ways.into_iter().enumerate().map(|(i, w)| (i as u64, w)) {
         for (n1, n2) in way.into_iter().tuple_windows() {
-            let new_way_id = new_ways.len();
+            let new_way_id = new_ways.len() as u64;
             new_ways.push([n1, n2]);
             ids_changes.entry(old_way_id).or_default().push(new_way_id);
         }
@@ -244,7 +247,7 @@ pub fn cut_ways_into_edges(
     for street_ways in streets.values_mut() {
         let new_street_ways = street_ways
             .iter()
-            .flat_map(|way_id| ids_changes[way_id].iter())
+            .flat_map(|way_id| ids_changes[&way_id].iter())
             .copied()
             .collect::<Vec<_>>();
         *street_ways = new_street_ways;
@@ -259,11 +262,11 @@ pub fn group_ways_in_tiles(
     side: f64,
 ) -> HashMap<TileKey, Vec<WayId>> {
     let mut tiles: HashMap<TileKey, Vec<WayId>> = HashMap::new();
-    for (way_id, [n1, n2]) in ways.iter().enumerate() {
-        let tile_id = nodes[*n1]
+    for (way_id, [n1, n2]) in ways.iter().enumerate().map(|(i, w)| (i as u64, w)) {
+        let tile_id = nodes[*n1 as usize]
             .tiles(side)
             .collect::<HashSet<_>>()
-            .intersection(&nodes[*n2].tiles(side).collect::<HashSet<_>>())
+            .intersection(&nodes[*n2 as usize].tiles(side).collect::<HashSet<_>>())
             .min() // this way we are deterministic
             .copied()
             .unwrap();
@@ -282,4 +285,6 @@ extern "C" {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn log(s: &str) {}
+fn log(s: &str) {
+    eprintln!("{}", s);
+}

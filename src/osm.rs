@@ -50,10 +50,10 @@ pub fn parse_osm_xml(
         .collect();
     let parser = EventReader::new(xml.as_bytes());
     let mut current_node = None;
-    let mut current_way: Option<(usize, Vec<usize>)> = None;
+    let mut current_way: Option<(WayId, Vec<NodeId>)> = None;
     let mut nodes = HashMap::new();
     let mut ways = HashMap::new();
-    let mut streets: HashMap<String, Vec<usize>> = HashMap::new();
+    let mut streets: HashMap<String, Vec<WayId>> = HashMap::new();
     let mut interests = Vec::new();
     let mut current_interest = None;
     let mut footway = false;
@@ -71,11 +71,11 @@ pub fn parse_osm_xml(
                     discard_way = false;
                     current_way = attributes.iter().find_map(|a| {
                         if a.name.local_name == "id" {
-                            a.value.parse::<usize>().ok().map(|id| (id, Vec::new()))
+                            a.value.parse::<u64>().ok().map(|id| (id, Vec::new()))
                         } else {
                             None
                         }
-                    })
+                    });
                 }
                 if name.local_name == "tag" {
                     let mut key = None;
@@ -113,7 +113,7 @@ pub fn parse_osm_xml(
                     if let Some((_, points)) = current_way.as_mut() {
                         points.extend(attributes.iter().find_map(|a| {
                             if a.name.local_name == "ref" {
-                                a.value.parse::<usize>().ok()
+                                a.value.parse::<u64>().ok()
                             } else {
                                 None
                             }
@@ -131,7 +131,7 @@ pub fn parse_osm_xml(
                         } else if attribute.name.local_name == "lat" {
                             lat = attribute.value.parse::<f64>().ok();
                         } else if attribute.name.local_name == "id" {
-                            id = attribute.value.parse::<usize>().ok();
+                            id = attribute.value.parse::<u64>().ok();
                         }
                     }
                     if let Some(lon) = lon {

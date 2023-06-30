@@ -32,7 +32,7 @@ pub struct Map {
 
 impl From<Vec<Node>> for Map {
     fn from(mut nodes: Vec<Node>) -> Self {
-        let mut ways = vec![(0..nodes.len()).collect::<Vec<_>>()];
+        let mut ways = vec![(0..nodes.len() as u64).collect::<Vec<_>>()];
         let mut streets = HashMap::new();
         crate::cut_segments_on_tiles(&mut nodes, &mut ways, SIDE);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
@@ -249,7 +249,7 @@ impl Map {
             let mut way = Vec::new();
             for node in way_nodes {
                 let node_id = *seen_nodes.entry(node).or_insert_with(|| {
-                    let new_id = nodes.len();
+                    let new_id = nodes.len() as u64;
                     nodes.push(node);
                     new_id
                 });
@@ -438,7 +438,10 @@ fn compress_tile(
     // );
     for (local_way_id, global_way_id) in tile_ways.iter().enumerate() {
         let mut new_way = Vec::new();
-        for node in ways[*global_way_id].iter().map(|&i| &nodes[i]) {
+        for node in ways[*global_way_id as usize]
+            .iter()
+            .map(|&i| &nodes[i as usize])
+        {
             let new_node = node.encode(tile_x, tile_y, side);
             new_way.push(new_node);
         }
