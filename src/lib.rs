@@ -28,7 +28,7 @@ mod interests;
 mod streets;
 pub use interests::save_tiled_interests;
 
-pub type TileKey = (usize, usize);
+pub type TileKey = (isize, isize);
 pub type WayId = u64;
 pub type NodeId = u64;
 

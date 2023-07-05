@@ -93,8 +93,8 @@ pub(crate) struct MapTiles<'a> {
 impl<'a, W: Write> Svg<W> for MapTiles<'a> {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
         for (tile_x, tile_y) in self.tiles {
-            let x = (self.map.first_tile.0 + tile_x) as f64 * self.map.side;
-            let y = (self.map.first_tile.1 + tile_y) as f64 * self.map.side;
+            let x = (self.map.first_tile.0 + *tile_x as isize) as f64 * self.map.side;
+            let y = (self.map.first_tile.1 + *tile_y as isize) as f64 * self.map.side;
             writeln!(
                 writer,
                 "<rect x='{x}' y='{y}' width='{}' height='{}' opacity='0.5' fill='{color}'/>",

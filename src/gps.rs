@@ -257,8 +257,8 @@ impl Gps {
                 .non_empty_tiles()
                 .map(|(x, y)| {
                     (
-                        x + path_map.first_tile.0 - map.first_tile.0,
-                        y + path_map.first_tile.1 - map.first_tile.1,
+                        (x as isize + path_map.first_tile.0 - map.first_tile.0) as usize,
+                        (y as isize + path_map.first_tile.1 - map.first_tile.1) as usize,
                     )
                 })
                 .flat_map(|(x, y)| {
@@ -274,19 +274,24 @@ impl Gps {
             let width = xmax - xmin;
             let height = ymax - ymin;
 
-            let min_x_tile = (xmin / crate::SIDE).floor() as usize;
-            let max_x_tile = ((xmin + width) / crate::SIDE).floor() as usize;
-            let min_y_tile = (ymin / crate::SIDE).floor() as usize;
-            let max_y_tile = ((ymin + height) / crate::SIDE).floor() as usize;
+            let min_x_tile = (xmin / crate::SIDE).floor() as isize;
+            let max_x_tile = ((xmin + width) / crate::SIDE).floor() as isize;
+            let min_y_tile = (ymin / crate::SIDE).floor() as isize;
+            let max_y_tile = ((ymin + height) / crate::SIDE).floor() as isize;
             (min_x_tile..=max_x_tile)
                 .cartesian_product(min_y_tile..=max_y_tile)
-                .map(|(x, y)| (x - map.first_tile.0, y - map.first_tile.1))
+                .map(|(x, y)| {
+                    (
+                        (x - map.first_tile.0) as usize,
+                        (y - map.first_tile.1) as usize,
+                    )
+                })
                 .collect::<HashSet<_>>()
         };
         map.keep_tiles(&tiles_wanted);
         self.interests.retain(|(_, p)| {
-            let tile_x = (p.x / crate::SIDE).floor() as usize - map.first_tile.0;
-            let tile_y = (p.y / crate::SIDE).floor() as usize - map.first_tile.1;
+            let tile_x = ((p.x / crate::SIDE).floor() as isize - map.first_tile.0) as usize;
+            let tile_y = ((p.y / crate::SIDE).floor() as isize - map.first_tile.1) as usize;
             tiles_wanted.contains(&(tile_x, tile_y))
         });
         map.fit_map();

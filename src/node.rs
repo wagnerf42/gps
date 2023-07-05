@@ -69,9 +69,9 @@ impl Node {
     }
 
     // Loop on all tiles the node belongs.
-    pub fn tiles(&self, side: f64) -> impl Iterator<Item = (usize, usize)> {
-        let x = (self.x * 255. / side).round() as usize;
-        let y = (self.y * 255. / side).round() as usize;
+    pub fn tiles(&self, side: f64) -> impl Iterator<Item = (isize, isize)> {
+        let x = (self.x * 255. / side).round() as isize;
+        let y = (self.y * 255. / side).round() as isize;
         let x_key = x / 255;
         let y_key = y / 255;
 
@@ -119,7 +119,7 @@ impl Node {
         Node::new(x, y)
     }
 
-    pub(crate) fn encode(&self, x: usize, y: usize, side: f64) -> [u8; 2] {
+    pub(crate) fn encode(&self, x: isize, y: isize, side: f64) -> [u8; 2] {
         let x_offset = self.x - x as f64 * side;
         let y_offset = self.y - y as f64 * side;
         [

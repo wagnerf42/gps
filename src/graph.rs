@@ -256,7 +256,7 @@ impl Map {
     }
 
     fn tile_edges(&self, tile_x: usize, tile_y: usize) -> impl Iterator<Item = [GNode; 2]> + '_ {
-        let tile_number = (tile_x + tile_y * self.grid_size.0) as u16;
+        let tile_number = (tile_x + tile_y * self.grid_size.0 as usize) as u16;
         (0..(self.tile_ways_number(tile_number))).map(move |local_way_id| {
             self.way(CWayId {
                 tile_number,

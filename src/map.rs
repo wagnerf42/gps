@@ -23,7 +23,7 @@ pub enum BlockType {
 pub struct Map {
     pub binary_ways: Vec<u8>,
     pub start_coordinates: (f64, f64),
-    pub first_tile: (usize, usize),
+    pub first_tile: (isize, isize),
     pub tiles_sizes_prefix: Vec<usize>,
     pub grid_size: (usize, usize),
     pub side: f64,
@@ -135,7 +135,7 @@ impl Map {
             first_tile: (xmin, ymin),
             start_coordinates: (xmin as f64 * side, ymin as f64 * side),
             tiles_sizes_prefix,
-            grid_size: ((xmax + 1 - xmin), (ymax + 1 - ymin)),
+            grid_size: ((xmax + 1 - xmin) as usize, (ymax + 1 - ymin) as usize),
             side,
             streets: new_streets,
         }
@@ -156,8 +156,8 @@ impl Map {
         writer.write_all(color)?;
 
         // first, the header
-        writer.write_all(&(self.first_tile.0 as u32).to_le_bytes())?;
-        writer.write_all(&(self.first_tile.1 as u32).to_le_bytes())?;
+        writer.write_all(&(self.first_tile.0 as i32).to_le_bytes())?;
+        writer.write_all(&(self.first_tile.1 as i32).to_le_bytes())?;
         writer.write_all(&(self.grid_size.0 as u32).to_le_bytes())?;
         writer.write_all(&(self.grid_size.1 as u32).to_le_bytes())?;
         writer.write_all(&self.start_coordinates.0.to_le_bytes())?;
@@ -230,8 +230,8 @@ impl Map {
     pub fn node_tiles(&self, node: &Node) -> impl Iterator<Item = (usize, usize)> + '_ {
         node.tiles(self.side).map(|(x, y)| {
             (
-                x.checked_sub(self.first_tile.0).unwrap(),
-                y.checked_sub(self.first_tile.1).unwrap(),
+                (x - self.first_tile.0) as usize,
+                (y - self.first_tile.1) as usize,
             )
         })
     }
@@ -380,7 +380,10 @@ impl Map {
 
         self.tiles_sizes_prefix = new_prefix;
         self.grid_size = (xmax + 1 - xmin, ymax + 1 - ymin);
-        self.first_tile = (self.first_tile.0 + xmin, self.first_tile.1 + ymin);
+        self.first_tile = (
+            self.first_tile.0 + xmin as isize,
+            self.first_tile.1 + ymin as isize,
+        );
         self.start_coordinates = (
             self.first_tile.0 as f64 * self.side,
             self.first_tile.1 as f64 * self.side,
@@ -423,8 +426,8 @@ impl Map {
 fn compress_tile(
     nodes: &[Node],
     ways: &[[NodeId; 2]],
-    tile_x: usize,
-    tile_y: usize,
+    tile_x: isize,
+    tile_y: isize,
     tile_ways: &[WayId],
     side: f64,
     ids_changes: &mut HashMap<WayId, CWayId>,

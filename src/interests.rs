@@ -27,10 +27,10 @@ pub fn save_tiled_interests<W: Write>(
         .into_option()
         .unwrap();
 
-    let first_tile_x = (xmin / side).floor() as usize;
-    let first_tile_y = (ymin / side).floor() as usize;
-    let grid_width = 1usize.max((xmax / side).floor() as usize - first_tile_x);
-    let grid_height = 1usize.max((ymax / side).floor() as usize - first_tile_y);
+    let first_tile_x = (xmin / side).floor() as isize;
+    let first_tile_y = (ymin / side).floor() as isize;
+    let grid_width = 1isize.max((xmax / side).floor() as isize - first_tile_x) as usize;
+    let grid_height = 1isize.max((ymax / side).floor() as isize - first_tile_y) as usize;
     let xmin = (xmin / side).floor() * side;
     let ymin = (ymin / side).floor() * side;
 
@@ -38,7 +38,7 @@ pub fn save_tiled_interests<W: Write>(
         (
             interest_node
                 .tiles(side)
-                .map(|(tx, ty)| (tx - first_tile_x, ty - first_tile_y))
+                .map(|(tx, ty)| ((tx - first_tile_x) as usize, (ty - first_tile_y) as usize))
                 .map(|(tx, ty)| (tx + ty * grid_width) as u16)
                 .next() // first tile is enough for interests
                 .unwrap(),
@@ -77,8 +77,8 @@ pub fn save_tiled_interests<W: Write>(
     for tile in &non_empty_tiles {
         for (interest_type, interest_node) in &tiled_interests[tile] {
             writer.write_all(&[*interest_type as u8])?;
-            let tile_x = first_tile_x + *tile as usize % grid_width;
-            let tile_y = first_tile_y + *tile as usize / grid_width;
+            let tile_x = first_tile_x + (*tile as usize % grid_width) as isize;
+            let tile_y = first_tile_y + (*tile as usize / grid_width) as isize;
             let encoded = interest_node.encode(tile_x, tile_y, side);
             // eprintln!("{interest_node:?} encodes as {encoded:?}, tile is {tile_x}/{tile_y}");
             writer.write_all(&encoded)?;

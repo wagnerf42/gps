@@ -12,10 +12,10 @@ pub fn grid_coordinates_between(
     let start_cell = start / side;
     let above_start_cell = start_cell.ceil();
     let real_start_cell = if start_cell == above_start_cell {
-        (above_start_cell + 1.) as u32
+        (above_start_cell + 1.) as i32
     } else {
-        above_start_cell as u32
+        above_start_cell as i32
     };
-    let end_cell = (end / side).ceil() as u32;
+    let end_cell = (end / side).ceil() as i32;
     (real_start_cell..end_cell).map(move |alpha| alpha as f64 * side)
 }
