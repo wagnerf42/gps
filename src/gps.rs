@@ -1,13 +1,13 @@
 use itertools::Itertools;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::{Read, Write},
 };
 use wasm_bindgen::prelude::*;
 
 use crate::{
     detect_sharp_turns,
-    gpx::save_path,
+    gpx::{save_heights, save_path},
     parse_gpx_points, save_svg, save_tiled_interests, simplify_path,
     svg::{save_svg_to_writer, UniColorNodes},
     Map, Node, Svg, SvgW,
@@ -20,6 +20,7 @@ pub struct Gps {
     map_polygon: Vec<Node>,
     interests: Vec<(usize, Node)>,
     map: Option<Map>,
+    heights: Option<HashMap<Node, f64>>,
 }
 
 #[wasm_bindgen]
@@ -129,7 +130,7 @@ impl Gps {
     fn new<R: Read>(gpx_reader: R) -> Self {
         // load all points composing the trace and mark commented points
         // as special waypoints.
-        let (mut waypoints, p) = parse_gpx_points(gpx_reader);
+        let (mut waypoints, p, heights) = parse_gpx_points(gpx_reader);
 
         // detect sharp turns before path simplification to keep them
         detect_sharp_turns(&p, &mut waypoints);
@@ -186,6 +187,7 @@ impl Gps {
             map_polygon,
             map: None,
             interests: Vec::new(),
+            heights: Some(heights),
         }
     }
     pub fn from_area(area: Vec<Node>) -> Self {
@@ -195,6 +197,7 @@ impl Gps {
             map_polygon: area,
             map: None,
             interests: Vec::new(),
+            heights: None,
         }
     }
     pub async fn request_map<P: AsRef<std::path::Path>>(
@@ -313,6 +316,9 @@ impl Gps {
                 eprintln!("saving the pathtiles");
                 let path: Map = gpx_path.clone().into();
                 path.save_tiles(writer, &[255, 0, 0])?;
+            }
+            if let Some(heights) = &self.heights {
+                save_heights(gpx_path, heights, writer)?;
             }
         }
         eprintln!("saving the maptiles");

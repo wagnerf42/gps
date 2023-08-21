@@ -18,6 +18,7 @@ pub enum BlockType {
     Streets,
     Path,
     Interests,
+    Heights,
 }
 
 pub struct Map {

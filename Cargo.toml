@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 tokio = { version = "1", features = ["full"] }
 
 [dependencies]
-gpx="*"
+gpx="0.9.1"
 itertools="*"
 lazy_static="*"
 osmio={version="*", optional=true}

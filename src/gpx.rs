@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::{Read, Write},
 };
 
@@ -11,12 +11,13 @@ use crate::{map_and_interests_from_string, request, Map, Node};
 const LOWER_SHARP_TURN: f64 = 80.0 * std::f64::consts::PI / 180.0;
 const UPPER_SHARP_TURN: f64 = std::f64::consts::PI * 2.0 - LOWER_SHARP_TURN;
 
-pub fn parse_gpx_points<R: Read>(reader: R) -> (HashSet<Node>, Vec<Node>) {
+pub fn parse_gpx_points<R: Read>(reader: R) -> (HashSet<Node>, Vec<Node>, HashMap<Node, f64>) {
     // read takes any io::Read and gives a Result<Gpx, Error>.
     let mut gpx: Gpx = read(reader).unwrap();
     eprintln!("we have {} tracks", gpx.tracks.len());
 
     let mut waypoints = HashSet::new();
+    let mut heights = HashMap::new();
 
     let points = gpx
         .tracks
@@ -27,15 +28,20 @@ pub fn parse_gpx_points<R: Read>(reader: R) -> (HashSet<Node>, Vec<Node>) {
         .flat_map(|segment| segment.points.into_iter())
         .map(|p| {
             let is_commented = p.comment.is_some();
+
             let (x, y) = p.point().x_y();
-            let p = Node { x, y };
+            let n = Node { x, y };
             if is_commented {
-                waypoints.insert(p);
+                waypoints.insert(n);
             }
-            p
+
+            if let Some(height) = p.elevation {
+                heights.insert(n, height);
+            }
+            n
         })
         .collect::<Vec<_>>();
-    (waypoints, points)
+    (waypoints, points, heights)
 }
 
 pub fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
@@ -84,6 +90,23 @@ pub async fn request_map_from<P: AsRef<std::path::Path>>(
         eprintln!("we saved the map");
     }
     Ok(map_and_interests_from_string(&osm_answer, key_values))
+}
+
+pub fn save_heights<W: Write>(
+    points: &[Node],
+    heights: &HashMap<Node, f64>,
+    writer: &mut W,
+) -> std::io::Result<()> {
+    if points.iter().any(|p| heights.get(p).is_none()) {
+        return Ok(()); // abort if even one height is missing
+    }
+    eprintln!("saving heights");
+    writer.write_all(&[crate::map::BlockType::Heights as u8])?;
+    writer.write_all(&(points.len() as u16).to_le_bytes())?;
+    for point in points {
+        writer.write_all(&heights[point].to_le_bytes())?;
+    }
+    Ok(())
 }
 
 pub fn save_path<W: Write>(
