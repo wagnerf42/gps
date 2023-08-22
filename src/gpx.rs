@@ -92,9 +92,9 @@ pub async fn request_map_from<P: AsRef<std::path::Path>>(
     Ok(map_and_interests_from_string(&osm_answer, key_values))
 }
 
-//! save heights for path points.
-//! this must be called after saving the path so that
-//! the parser knows how many heights we have.
+/// save heights for path points.
+/// this must be called after saving the path so that
+/// the parser knows how many heights we have.
 pub fn save_heights<W: Write>(
     points: &[Node],
     heights: &HashMap<Node, f64>,
@@ -106,7 +106,7 @@ pub fn save_heights<W: Write>(
     eprintln!("saving heights");
     writer.write_all(&[crate::map::BlockType::Heights as u8])?;
     for point in points {
-        writer.write_all(&heights[point].to_le_bytes())?;
+        writer.write_all(&(heights[point] as i16).to_le_bytes())?;
     }
     Ok(())
 }
