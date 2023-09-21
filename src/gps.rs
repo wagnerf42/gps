@@ -67,6 +67,11 @@ pub fn get_polygon(gps: &Gps) -> Vec<f64> {
 }
 
 #[wasm_bindgen]
+pub fn has_heights(gps: &Gps) -> bool {
+    gps.heights.is_some()
+}
+
+#[wasm_bindgen]
 pub fn get_polyline(gps: &Gps) -> Vec<f64> {
     gps.path
         .as_ref()
@@ -131,6 +136,23 @@ impl Gps {
         // load all points composing the trace and mark commented points
         // as special waypoints.
         let (mut waypoints, p, heights) = parse_gpx_points(gpx_reader);
+
+        // brouter has a tendency to generate small loops
+        // around its waypoints
+        // we remove them here.
+        let p = p
+            .first()
+            .cloned()
+            .into_iter()
+            .chain(p.windows(3).filter_map(|w| {
+                if w.first() == w.last() && w[0].distance_to(&w[1]) < 0.00015 {
+                    None
+                } else {
+                    Some(w[1])
+                }
+            }))
+            .chain(p.last().cloned())
+            .collect::<Vec<_>>();
 
         // detect sharp turns before path simplification to keep them
         detect_sharp_turns(&p, &mut waypoints);

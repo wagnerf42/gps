@@ -4,8 +4,8 @@ use wasm_bindgen::prelude::*;
 
 mod gps;
 pub use gps::{
-    get_gps_content, get_gps_map_svg, get_polygon, get_polyline, gps_from_area, load_gps_from_file,
-    load_gps_from_string, request_map, Gps,
+    get_gps_content, get_gps_map_svg, get_polygon, get_polyline, gps_from_area, has_heights,
+    load_gps_from_file, load_gps_from_string, request_map, Gps,
 };
 mod node;
 pub use node::Node;

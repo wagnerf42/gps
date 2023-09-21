@@ -61,7 +61,9 @@ impl Gps {
             match block_type {
                 0 => {
                     //tiles
+                    eprintln!("parsing map");
                     let map = Map::new(&mut reader)?;
+                    eprintln!("done parsing map");
                     gps.maps.push(map);
                 }
                 1 => {
@@ -70,12 +72,31 @@ impl Gps {
                 }
                 2 => {
                     // path
+                    eprintln!("parsing path");
                     gps.path = Some(Path::new(&mut reader)?);
+                    gps.path
+                        .as_ref()
+                        .unwrap()
+                        .points
+                        .iter()
+                        .enumerate()
+                        .for_each(|(i, p)| eprintln!("point num {i} : {p:?}"));
+                    eprintln!("done parsing path");
                 }
                 3 => {
                     // interests
                     eprintln!("we have some interests");
                     gps.interests = Some(Interests::new(&mut reader)?);
+                    eprintln!("done parsing interests");
+                }
+                4 => {
+                    // heights
+                    let path_length = gps
+                        .path
+                        .as_ref()
+                        .map(|p| p.points.len())
+                        .unwrap_or_default();
+                    reader.seek_relative(path_length as i64 * 2)?;
                 }
                 _ => panic!("invalid block type {block_type}"),
             }
