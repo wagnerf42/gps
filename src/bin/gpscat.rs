@@ -51,6 +51,7 @@ struct Gps {
     maps: Vec<Map>,
     path: Option<Path>,
     interests: Option<Interests>,
+    heights: Option<Vec<i16>>,
 }
 
 impl Gps {
@@ -74,13 +75,6 @@ impl Gps {
                     // path
                     eprintln!("parsing path");
                     gps.path = Some(Path::new(&mut reader)?);
-                    gps.path
-                        .as_ref()
-                        .unwrap()
-                        .points
-                        .iter()
-                        .enumerate()
-                        .for_each(|(i, p)| eprintln!("point num {i} : {p:?}"));
                     eprintln!("done parsing path");
                 }
                 3 => {
@@ -91,12 +85,17 @@ impl Gps {
                 }
                 4 => {
                     // heights
+                    eprintln!("parsing heights");
                     let path_length = gps
                         .path
                         .as_ref()
                         .map(|p| p.points.len())
                         .unwrap_or_default();
-                    reader.seek_relative(path_length as i64 * 2)?;
+                    let mut heights = Vec::new();
+                    for _ in 0..path_length {
+                        heights.push(reader.read_i16::<LittleEndian>()?);
+                    }
+                    gps.heights = Some(heights);
                 }
                 _ => panic!("invalid block type {block_type}"),
             }
@@ -293,6 +292,24 @@ impl<W: std::io::Write> Svg<W> for Map {
 fn main() {
     if let Some(filename) = std::env::args().nth(1) {
         let gps = Gps::new(&filename).unwrap();
+
+        gps.path
+            .as_ref()
+            .unwrap()
+            .points
+            .iter()
+            .enumerate()
+            .for_each(|(i, p)| {
+                eprintln!(
+                    "point num {i} : {p:?} (height: {})",
+                    gps.heights
+                        .as_ref()
+                        .map(|h| h[i])
+                        .clone()
+                        .unwrap_or_default()
+                )
+            });
+
         let bbox = gps.maps.last().unwrap().dimensions.bounding_box();
         save_svg(
             "debug.svg",
