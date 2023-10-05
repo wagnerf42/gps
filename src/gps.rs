@@ -155,9 +155,9 @@ impl Gps {
             .collect::<Vec<_>>();
 
         // detect sharp turns before path simplification to keep them
-        detect_sharp_turns(&p, &mut waypoints);
-        waypoints.insert(p.first().copied().unwrap());
-        waypoints.insert(p.last().copied().unwrap());
+        // detect_sharp_turns(&p, &mut waypoints);
+        // waypoints.insert(p.first().copied().unwrap());
+        // waypoints.insert(p.last().copied().unwrap());
         println!("we have {} waypoints", waypoints.len());
 
         println!("initially we had {} points", p.len());
@@ -212,6 +212,18 @@ impl Gps {
             heights: Some(heights),
         }
     }
+    pub fn detect_crossroads(&mut self) {
+        let (path, map, mut waypoints) = (&self.path, &self.map, &mut self.waypoints);
+        if let Some(path) = path {
+            if let Some(map) = map {
+                if let Some(waypoints) = waypoints {
+                    if waypoints.is_empty() {
+                        map.detect_crossroads(path, waypoints);
+                    }
+                }
+            }
+        }
+    }
     pub fn from_area(area: Vec<Node>) -> Self {
         Gps {
             waypoints: None,
@@ -232,7 +244,8 @@ impl Gps {
             .expect("failed requesting map");
         self.map = Some(map);
         self.interests = interests;
-        self.clip_map()
+        self.clip_map();
+        self.detect_crossroads();
     }
     pub fn load_map<P: AsRef<std::path::Path>>(
         &mut self,
@@ -242,7 +255,8 @@ impl Gps {
         crate::load_map_and_interests(&map_name, key_values).map(|(map, interests)| {
             self.map = Some(map);
             self.interests = interests;
-            self.clip_map()
+            self.clip_map();
+            self.detect_crossroads();
         })
     }
     pub fn save_svg<P: AsRef<std::path::Path>>(&self, svg_path: P) -> std::io::Result<()> {
@@ -254,6 +268,9 @@ impl Gps {
                 .collect::<Vec<_>>(),
         );
 
+        let waypoints_nodes =
+            UniColorNodes(self.waypoints.iter().flatten().cloned().collect::<Vec<_>>());
+
         let map = self.map.as_ref().unwrap();
         if let Some(gpx_path) = &self.path {
             save_svg(
@@ -263,13 +280,18 @@ impl Gps {
                     map as SvgW,
                     (&gpx_path.as_slice()) as SvgW,
                     &interests_nodes as SvgW,
+                    &waypoints_nodes as SvgW,
                 ],
             )
         } else {
             save_svg(
                 svg_path,
                 map.bounding_box(),
-                [map as SvgW, &interests_nodes as SvgW],
+                [
+                    map as SvgW,
+                    &interests_nodes as SvgW,
+                    &waypoints_nodes as SvgW,
+                ],
             )
         }
     }

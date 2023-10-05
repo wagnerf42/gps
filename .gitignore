@@ -1,1 +1,5 @@
 /target
+*.gps
+*.gpx
+*.map
+*.svg

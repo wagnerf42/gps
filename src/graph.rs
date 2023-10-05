@@ -147,6 +147,22 @@ impl Map {
         Vec::new()
     }
 
+    pub fn detect_crossroads(&self, path: &[Node], waypoints: &mut HashSet<Node>) {
+        for node in path {
+            if self.nearby_high_degree_node(node, 0.00005) {
+                waypoints.insert(node.clone());
+            }
+        }
+    }
+
+    fn nearby_high_degree_node(&self, node: &Node, treshold: f64) -> bool {
+        self.node_tiles(node)
+            .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
+            .flatten()
+            .filter(|n| n.distance_to(node) <= treshold)
+            .any(|n| self.neighbours(&n).nth(2).is_some())
+    }
+
     fn greedy_path(&self, start: &GNode, end: &GNode) -> f64 {
         let mut heap = BinaryHeap::new();
         heap.push(HeapEntry {
@@ -292,9 +308,14 @@ impl Map {
         self.node_tiles(node) // TODO: rewrite me now that we have node ids in the tile
             .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
             .filter_map(|nodes| {
-                if nodes[0].is(node) {
+                let is_0 = nodes[0].is(node);
+                let is_1 = nodes[1].is(node);
+                if is_0 && is_1 {
+                    None // if both endpoints are neighbours then we'll leave through one of them
+                         // on another way
+                } else if is_0 {
                     Some([nodes[0], nodes[1]])
-                } else if nodes[1].is(node) {
+                } else if is_1 {
                     Some([nodes[1], nodes[0]])
                 } else {
                     None
