@@ -156,8 +156,8 @@ impl Gps {
 
         // detect sharp turns before path simplification to keep them
         // detect_sharp_turns(&p, &mut waypoints);
-        // waypoints.insert(p.first().copied().unwrap());
-        // waypoints.insert(p.last().copied().unwrap());
+        waypoints.insert(p.first().copied().unwrap());
+        waypoints.insert(p.last().copied().unwrap());
         println!("we have {} waypoints", waypoints.len());
 
         println!("initially we had {} points", p.len());
@@ -217,7 +217,8 @@ impl Gps {
         if let Some(path) = path {
             if let Some(map) = map {
                 if let Some(waypoints) = waypoints {
-                    if waypoints.is_empty() {
+                    if waypoints.len() == 2 {
+                        // if we have two waypoints it's start and end
                         map.detect_crossroads(path, waypoints);
                     }
                 }
@@ -246,6 +247,13 @@ impl Gps {
         self.interests = interests;
         self.clip_map();
         self.detect_crossroads();
+        self.add_waypoints_to_interests();
+    }
+    fn add_waypoints_to_interests(&mut self) {
+        if let Some(waypoints) = &self.waypoints {
+            self.interests
+                .extend(std::iter::repeat(0).zip(waypoints.iter().copied()));
+        }
     }
     pub fn load_map<P: AsRef<std::path::Path>>(
         &mut self,
@@ -257,12 +265,14 @@ impl Gps {
             self.interests = interests;
             self.clip_map();
             self.detect_crossroads();
+            self.add_waypoints_to_interests();
         })
     }
     pub fn save_svg<P: AsRef<std::path::Path>>(&self, svg_path: P) -> std::io::Result<()> {
         let interests_nodes = UniColorNodes(
             self.interests
                 .iter()
+                .skip(1) // skip waypoints
                 .map(|(_, n)| n)
                 .cloned()
                 .collect::<Vec<_>>(),
@@ -342,11 +352,6 @@ impl Gps {
             tiles_wanted.contains(&(tile_x, tile_y))
         });
         map.fit_map();
-
-        if let Some(waypoints) = &self.waypoints {
-            self.interests
-                .extend(std::iter::repeat(0).zip(waypoints.iter().copied()));
-        }
     }
 
     pub fn write_gps<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {

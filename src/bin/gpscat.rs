@@ -11,7 +11,7 @@ struct Dimensions {
     side: f64,
 }
 
-const COLORS: [&str; 5] = ["black", "red", "blue", "cyan", "green"];
+const COLORS: [&str; 5] = ["yellow", "red", "blue", "cyan", "green"];
 
 impl Dimensions {
     fn new<R: Read>(reader: &mut R) -> std::io::Result<Dimensions> {
@@ -293,22 +293,20 @@ fn main() {
     if let Some(filename) = std::env::args().nth(1) {
         let gps = Gps::new(&filename).unwrap();
 
-        gps.path
-            .as_ref()
-            .unwrap()
-            .points
-            .iter()
-            .enumerate()
-            .for_each(|(i, p)| {
-                eprintln!(
-                    "point num {i} : {p:?} (height: {})",
-                    gps.heights
-                        .as_ref()
-                        .map(|h| h[i])
-                        .clone()
-                        .unwrap_or_default()
-                )
-            });
+        let path = gps.path.as_ref().unwrap();
+        path.points.iter().enumerate().for_each(|(i, p)| {
+            if path.waypoints[i / 8] & (1 << (i % 8)) != 0 {
+                eprint!("*** ");
+            }
+            eprintln!(
+                "point num {i} : {p:?} (height: {})",
+                gps.heights
+                    .as_ref()
+                    .map(|h| h[i])
+                    .clone()
+                    .unwrap_or_default()
+            )
+        });
 
         let bbox = gps.maps.last().unwrap().dimensions.bounding_box();
         save_svg(
@@ -316,6 +314,7 @@ fn main() {
             bbox,
             gps.maps
                 .iter()
+                .rev()
                 .map(|m| m as SvgW)
                 .chain(gps.interests.as_ref().into_iter().map(|i| i as SvgW)),
         )
