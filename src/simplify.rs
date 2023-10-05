@@ -2,8 +2,8 @@ use super::Node;
 use std::collections::{hash_map::Entry, HashMap};
 
 pub fn simplify_path(points: &[Node], epsilon: f64) -> Vec<Node> {
-    if points.len() <= 600 {
-        optimal_simplification(points, epsilon)
+    if points.len() <= 1000 {
+        optimal_simplification2(points, epsilon)
     } else {
         hybrid_simplification(points, epsilon)
     }
@@ -30,8 +30,8 @@ pub fn optimal_simplification2(points: &[Node], epsilon: f64) -> Vec<Node> {
 }
 
 fn hybrid_simplification(points: &[Node], epsilon: f64) -> Vec<Node> {
-    if points.len() <= 300 {
-        optimal_simplification(points, epsilon)
+    if points.len() <= 800 {
+        optimal_simplification2(points, epsilon)
     } else if points.first().unwrap() == points.last().unwrap() {
         let first = points.first().unwrap();
         let index_farthest = points
