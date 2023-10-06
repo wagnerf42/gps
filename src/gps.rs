@@ -56,6 +56,7 @@ pub fn get_gps_map_svg(gps: &Gps) -> String {
             .chain(std::iter::once(&UniColorNodes(
                 gps.interests.iter().map(|(_, n)| *n).collect::<Vec<_>>(),
             ) as &dyn Svg<_>)),
+        true,
     )
     .unwrap();
     String::from_utf8(svg_string).unwrap()

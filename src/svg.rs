@@ -115,19 +115,25 @@ pub fn save_svg<
     content: S,
 ) -> std::io::Result<()> {
     let mut writer = std::io::BufWriter::new(std::fs::File::create(path)?);
-    save_svg_to_writer(&mut writer, bounding_box, content)
+    save_svg_to_writer(&mut writer, bounding_box, content, false)
 }
 
 pub fn save_svg_to_writer<'a, W: Write + 'a, S: IntoIterator<Item = &'a dyn Svg<W>>>(
     writer: &mut W,
     bounding_box: (f64, f64, f64, f64),
     content: S,
+    for_the_web: bool,
 ) -> std::io::Result<()> {
     let (xmin, ymin, xmax, ymax) = bounding_box;
+    let (svg_width, svg_height) = if for_the_web {
+        ("100%", "100%")
+    } else {
+        ("800", "600")
+    };
 
     writeln!(
         writer,
-        "<svg width='800' height='600' viewBox='{} {} {} {}'>",
+        "<svg width='{svg_width}' height='{svg_height}' viewBox='{} {} {} {}'>",
         xmin,
         ymin,
         xmax - xmin,
