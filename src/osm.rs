@@ -146,7 +146,8 @@ pub fn parse_osm_xml(
             Ok(XmlEvent::EndElement { name }) => {
                 if name.local_name == "way" {
                     if let Some((id, way_points)) = current_way.take() {
-                        if !discard_way && (!footway || bicycle) {
+                        // if !discard_way && (!footway || bicycle) {
+                        if !discard_way {
                             ways.insert(id, way_points);
 
                             if let Some(street_name) = current_street_name.take() {

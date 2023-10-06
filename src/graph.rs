@@ -149,7 +149,7 @@ impl Map {
 
     pub fn detect_crossroads(&self, path: &[Node], waypoints: &mut HashSet<Node>) {
         for node in path {
-            if self.nearby_high_degree_node(node, 0.00005) {
+            if self.nearby_high_degree_node(node, 0.0001) {
                 waypoints.insert(node.clone());
             }
         }

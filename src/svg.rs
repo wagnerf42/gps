@@ -66,19 +66,19 @@ impl<W: Write> Svg<W> for Node {
 impl<W: Write> Svg<W> for Map {
     fn write_svg(&self, writer: &mut W, color: &str) -> std::io::Result<()> {
         let (xmin, ymin, xmax, ymax) = self.bounding_box();
-        for x in grid_coordinates_between(xmin, xmax, self.side) {
-            writeln!(
-            writer,
-            "<line x1='{x}' y1= '{ymin}' x2='{x}' y2='{ymax}' stroke='grey' stroke-width='0.2%'/>"
-        )?;
-        }
+        // for x in grid_coordinates_between(xmin, xmax, self.side) {
+        //     writeln!(
+        //     writer,
+        //     "<line x1='{x}' y1= '{ymin}' x2='{x}' y2='{ymax}' stroke='grey' stroke-width='0.2%'/>"
+        // )?;
+        // }
 
-        for y in grid_coordinates_between(ymin, ymax, self.side) {
-            writeln!(
-            writer,
-            "<line x1='{xmin}' y1= '{y}' x2='{xmax}' y2='{y}' stroke='grey' stroke-width='0.2%'/>"
-        )?;
-        }
+        // for y in grid_coordinates_between(ymin, ymax, self.side) {
+        //     writeln!(
+        //     writer,
+        //     "<line x1='{xmin}' y1= '{y}' x2='{xmax}' y2='{y}' stroke='grey' stroke-width='0.2%'/>"
+        // )?;
+        // }
 
         self.ways()
             .try_for_each(|w| w.as_slice().write_svg(writer, color))
