@@ -229,11 +229,19 @@ impl Map {
     }
 
     pub fn node_tiles(&self, node: &Node) -> impl Iterator<Item = (usize, usize)> + '_ {
-        node.tiles(self.side).map(|(x, y)| {
-            (
-                (x - self.first_tile.0) as usize,
-                (y - self.first_tile.1) as usize,
-            )
+        node.tiles(self.side).filter_map(|(x, y)| {
+            if x >= self.first_tile.0
+                && y >= self.first_tile.1
+                && x - self.first_tile.0 < self.grid_size.0 as isize
+                && y - self.first_tile.1 < self.grid_size.1 as isize
+            {
+                Some((
+                    (x - self.first_tile.0) as usize,
+                    (y - self.first_tile.1) as usize,
+                ))
+            } else {
+                None
+            }
         })
     }
 

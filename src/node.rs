@@ -18,6 +18,11 @@ impl Node {
     pub fn new(x: f64, y: f64) -> Self {
         Node { x, y }
     }
+    pub fn angle_to(&self, other: &Self) -> f64 {
+        let xdiff = other.x - self.x;
+        let ydiff = other.y - self.y;
+        (ydiff.atan2(xdiff) + 2. * std::f64::consts::PI) % (2. * std::f64::consts::PI)
+    }
     // pub fn is_almost(&self, other: &Self) -> bool {
     //     crate::geometry::is_almost(self.x, other.x) && crate::geometry::is_almost(self.y, other.y)
     // }

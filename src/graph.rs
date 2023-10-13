@@ -1,10 +1,14 @@
 use itertools::Itertools;
+use std::f64::consts::PI;
 use std::{
     collections::{BinaryHeap, HashMap, HashSet},
     io::Write,
 };
 
-use crate::{save_svg, CNodeId, CWayId, Map, Node, Svg, SvgW, TILE_BORDER_THICKNESS};
+use crate::{
+    grid_coordinates_between, save_svg, CNodeId, CWayId, Map, Node, Svg, SvgW,
+    TILE_BORDER_THICKNESS,
+};
 
 #[derive(Debug, Clone, Copy)]
 struct GNode {
@@ -147,12 +151,198 @@ impl Map {
         Vec::new()
     }
 
-    pub fn detect_crossroads(&self, path: &[Node], waypoints: &mut HashSet<Node>) {
-        for node in path {
-            if self.nearby_high_degree_node(node, 0.0001) {
-                waypoints.insert(node.clone());
+    // return if we can discard this crossroad safely.
+    // it is the case if by going forward you take the right path
+    pub fn obvious_crossroad(
+        &self,
+        possible_waypoint_node: &Node,
+        previous_node: &Node,
+        next_node: &Node,
+    ) -> bool {
+        let ideal_leaving_angle = previous_node.angle_to(possible_waypoint_node);
+        let real_leaving_angle = possible_waypoint_node.angle_to(next_node);
+        let allowed_angle_diff = angles_sub(ideal_leaving_angle, real_leaving_angle);
+
+        let mut possible_destinations = HashSet::new();
+        for n in self
+            .node_tiles(possible_waypoint_node)
+            .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
+            .flatten()
+            .filter(|n| n.distance_to(possible_waypoint_node) <= 0.0001)
+        {
+            possible_destinations.extend(self.neighbours(&n).map(|n| n[1].node));
+        }
+
+        possible_destinations.len() <= 2 || {
+            // check alignment
+            // if one and only one destination is roughly aligned
+            // then it's good : it's not a waypoint
+            let count = possible_destinations
+                .iter()
+                .filter(|d| {
+                    let ia = possible_waypoint_node.angle_to(d);
+                    let angle_diff = angles_sub(ideal_leaving_angle, ia);
+                    // angle_diff <= allowed_angle_diff * 1.5 + PI / 36.
+                    angle_diff <= allowed_angle_diff + PI / 10.
+                })
+                .count();
+            count == 1
+        }
+    }
+
+    pub fn detect_crossroads(&self, path: &mut Vec<Node>, waypoints: &mut HashSet<Node>) {
+        eprintln!("detecting crossroads");
+        // let rp = crate::gps::simplify_path_around_waypoints(&path, &waypoints);
+
+        let crossroads = self
+            .ways()
+            .flatten()
+            .unique()
+            .filter(|n| {
+                self.node_tiles(n)
+                    .flat_map(|(tx, ty)| self.tile_edges(tx, ty))
+                    .filter_map(|[n1, n2]| {
+                        if n1.node == *n {
+                            Some(n2.node)
+                        } else if n2.node == *n {
+                            Some(n1.node)
+                        } else {
+                            None
+                        }
+                    })
+                    .unique()
+                    .count()
+                    > 2
+            })
+            .collect::<HashSet<_>>();
+
+        let mut current_distance = 0.;
+        let mut previous_waypoint_distance = None;
+        for (previous_node, node, next_node) in path.iter().tuple_windows() {
+            current_distance += previous_node.distance_to(node);
+            if self
+                .node_tiles(node)
+                .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
+                .flatten()
+                .filter(|n| n.distance_to(node) <= 0.0001)
+                .any(|n| crossroads.contains(&n))
+            {
+                if !(self.obvious_crossroad(node, previous_node, next_node)
+                    && self.obvious_crossroad(node, next_node, previous_node))
+                {
+                    if previous_waypoint_distance
+                        .map(|pd| current_distance - pd > 0.0003)
+                        .unwrap_or(true)
+                    {
+                        waypoints.insert(*node);
+                        previous_waypoint_distance = Some(current_distance);
+                    }
+                }
             }
         }
+        let final_path = crate::gps::simplify_path_around_waypoints(path, waypoints);
+        return;
+
+        // let tiled_segments = self.hash_segments_on_tiles(&rp);
+        // for possible_waypoint in crossroads {
+        //     let impacted_segments = self
+        //         .node_tiles(&possible_waypoint)
+        //         .filter_map(|tile| tiled_segments.get(&tile))
+        //         .flatten()
+        //         .unique();
+        //     for &segment_id in impacted_segments {
+        //         let start = &rp[segment_id];
+        //         let end = &rp[segment_id + 1];
+        //         if possible_waypoint.distance_to(start) <= 0.0001 {
+        //             if segment_id > 0 {
+        //                 let previous_node = &rp[segment_id - 1];
+        //                 let next_node = end;
+        //                 if !(self.obvious_crossroad(start, previous_node, next_node)
+        //                     && self.obvious_crossroad(start, next_node, previous_node))
+        //                 {
+        //                     waypoints.insert(*start);
+        //                 }
+        //             }
+        //         } else if possible_waypoint.distance_to(end) <= 0.0001 {
+        //             if segment_id < rp.len() - 1 {
+        //                 let previous_node = start;
+        //                 let next_node = end;
+        //                 if !(self.obvious_crossroad(end, previous_node, next_node)
+        //                     && self.obvious_crossroad(end, next_node, previous_node))
+        //                 {
+        //                     waypoints.insert(*end);
+        //                 }
+        //             }
+        //         } else if possible_waypoint.distance_to_segment(start, end) <= 0.0001 {
+        //             if !(self.obvious_crossroad(&possible_waypoint, start, end)
+        //                 && self.obvious_crossroad(&possible_waypoint, end, start))
+        //             {
+        //                 waypoints.insert(possible_waypoint);
+        //             }
+        //         }
+        //     }
+        // }
+        // let final_path = crate::gps::simplify_path_around_waypoints(path, waypoints);
+        // for (previous_node, node, next_node) in rp.iter().tuple_windows() {
+        //     if self
+        //         .node_tiles(node)
+        //         .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
+        //         .flatten()
+        //         .filter(|n| n.distance_to(node) <= 0.0001)
+        //         .any(|n| crossroads.contains(&n))
+        //     {
+        //         // waypoints.insert(*node);
+        //         // continue;
+        //         if self.obvious_crossroad(node, previous_node, next_node)
+        //             && self.obvious_crossroad(node, next_node, previous_node)
+        //         {
+        //             eprintln!("discarding");
+        //         } else {
+        //             eprintln!("keeping");
+        //             waypoints.insert(*node);
+        //         }
+        //     }
+        // }
+        // eprintln!("nodes: {} waypoints: {}", final_path.len(), waypoints.len());
+        // *path = final_path;
+
+        // return;
+
+        // for node in path {
+        //     if self.nearby_high_degree_node(node, 0.0001) {
+        //         waypoints.insert(node.clone());
+        //     }
+        // }
+    }
+
+    fn hash_segments_on_tiles(&self, path: &[Node]) -> HashMap<(usize, usize), HashSet<usize>> {
+        // figure out for each tile which path segments are on it
+        let mut segments_tiles: HashMap<(usize, usize), HashSet<usize>> = HashMap::new();
+        for (segment_id, (n1, n2)) in path.iter().tuple_windows().enumerate() {
+            let mut new_nodes = std::iter::once(*n1)
+                .chain(
+                    grid_coordinates_between(n1.x, n2.x, self.side)
+                        .map(|x| n1.vertical_segment_intersection(&n2, x))
+                        .chain(
+                            grid_coordinates_between(n1.y, n2.y, self.side)
+                                .map(|y| n1.horizontal_segment_intersection(&n2, y)),
+                        ),
+                )
+                .chain(std::iter::once(*n2))
+                .collect::<Vec<_>>();
+            new_nodes.sort_unstable_by(|na, nb| {
+                let da = na.squared_distance_to(&n1);
+                let db = nb.squared_distance_to(&n1);
+                da.partial_cmp(&db).unwrap()
+            });
+            new_nodes
+                .iter()
+                .flat_map(|n| self.node_tiles(n))
+                .for_each(|tile| {
+                    segments_tiles.entry(tile).or_default().insert(segment_id);
+                });
+        }
+        segments_tiles
     }
 
     fn nearby_high_degree_node(&self, node: &Node, treshold: f64) -> bool {
@@ -411,4 +601,13 @@ impl Ord for HeapEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.partial_cmp(other).unwrap()
     }
+}
+
+fn angles_sub(angle1: f64, angle2: f64) -> f64 {
+    // pre-conditions : angles are both between 0 and 2pi
+    let diff1 = angle2 - angle1;
+    let diff2 = angle1 - angle2;
+    let normalized_diff1 = (diff1 + (2. * PI)) % (2. * PI);
+    let normalized_diff2 = (diff2 + (2. * PI)) % (2. * PI);
+    normalized_diff1.min(normalized_diff2)
 }

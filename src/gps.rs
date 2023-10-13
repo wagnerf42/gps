@@ -159,34 +159,9 @@ impl Gps {
         // detect_sharp_turns(&p, &mut waypoints);
         waypoints.insert(p.first().copied().unwrap());
         waypoints.insert(p.last().copied().unwrap());
-        println!("we have {} waypoints", waypoints.len());
 
-        println!("initially we had {} points", p.len());
+        let rp = simplify_path_around_waypoints(&p, &waypoints);
 
-        // simplify path
-        let rp = if p.len() < 100 {
-            p.clone()
-        } else {
-            std::iter::successors(Some(0.00015), |precision| Some(precision / 2.))
-                .map(|precision| {
-                    // simplify path
-                    let mut rp = Vec::new();
-                    let mut segment = Vec::new();
-                    for point in &p {
-                        segment.push(*point);
-                        if waypoints.contains(point) && segment.len() >= 2 {
-                            let mut s = simplify_path(&segment, precision);
-                            rp.append(&mut s);
-                            segment = rp.pop().into_iter().collect();
-                        }
-                    }
-                    rp.append(&mut segment);
-                    rp
-                })
-                .find(|rp| rp.len() > 80)
-                .unwrap()
-        };
-        println!("we now have {} points", rp.len());
         let (mut xmin, mut xmax) = rp.iter().map(|p| p.x).minmax().into_option().unwrap();
         let (mut ymin, mut ymax) = rp.iter().map(|p| p.y).minmax().into_option().unwrap();
         let map_polygon = if (xmax - xmin) * (ymax - ymin) < 0.2 * 0.2 {
@@ -206,7 +181,7 @@ impl Gps {
         };
         Gps {
             waypoints: Some(waypoints),
-            path: Some(rp),
+            path: Some(p),
             map_polygon,
             map: None,
             interests: Vec::new(),
@@ -214,7 +189,7 @@ impl Gps {
         }
     }
     pub fn detect_crossroads(&mut self) {
-        let (path, map, mut waypoints) = (&self.path, &self.map, &mut self.waypoints);
+        let (mut path, map, mut waypoints) = (&mut self.path, &self.map, &mut self.waypoints);
         if let Some(path) = path {
             if let Some(map) = map {
                 if let Some(waypoints) = waypoints {
@@ -395,4 +370,25 @@ fn inflate_polyline(rp: &[Node], side: f64) -> Vec<Node> {
         .points()
         .map(|p| Node::new(p.x(), p.y()))
         .collect()
+}
+
+pub fn simplify_path_around_waypoints(p: &Vec<Node>, waypoints: &HashSet<Node>) -> Vec<Node> {
+    println!("we have {} waypoints", waypoints.len());
+
+    println!("initially we had {} points", p.len());
+
+    // simplify path
+    let mut rp = Vec::new();
+    let mut segment = Vec::new();
+    for point in p {
+        segment.push(*point);
+        if waypoints.contains(point) && segment.len() >= 2 {
+            let mut s = simplify_path(&segment, 0.00015);
+            rp.append(&mut s);
+            segment = rp.pop().into_iter().collect();
+        }
+    }
+    rp.append(&mut segment);
+    println!("we now have {} points", rp.len());
+    rp
 }
