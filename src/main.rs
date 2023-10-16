@@ -1,4 +1,4 @@
-use gps::Node;
+use gps::{disable_elevation, Node};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut gps, map_name) = if std::env::args().len() == 2 {
         let gpx_filename = std::env::args().nth(1).unwrap();
 
-        let gps = gps::load_gps_from_file(&gpx_filename)?;
+        let gps = gps::load_gps_from_file(&gpx_filename, true)?;
         let mut map_name: std::path::PathBuf = (&gpx_filename).into();
         map_name.set_extension("map");
         (gps, map_name)
@@ -42,6 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if gps.load_map(&map_name, &key_values).is_err() {
         gps.request_map(&key_values, Some(map_name)).await
     }
+    // disable_elevation(&mut gps);
     gps.save_svg("map.svg").expect("failed saving svg file");
 
     let mut writer = std::io::BufWriter::new(std::fs::File::create(gps_name)?);

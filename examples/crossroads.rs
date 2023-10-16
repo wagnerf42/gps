@@ -9,7 +9,7 @@ fn main() -> std::io::Result<()> {
     ];
     let gpx_filename = std::env::args().nth(1).unwrap();
 
-    let mut gps = gps::load_gps_from_file(&gpx_filename)?;
+    let mut gps = gps::load_gps_from_file(&gpx_filename, true)?;
     let mut map_name: std::path::PathBuf = (&gpx_filename).into();
     map_name.set_extension("map");
     gps.load_map(&map_name, &key_values)?;

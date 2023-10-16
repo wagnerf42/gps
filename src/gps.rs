@@ -21,6 +21,12 @@ pub struct Gps {
     interests: Vec<(usize, Node)>,
     map: Option<Map>,
     heights: Option<HashMap<Node, f64>>,
+    autodetect_waypoints: bool,
+}
+
+#[wasm_bindgen]
+pub fn disable_elevation(gps: &mut Gps) {
+    gps.heights = None;
 }
 
 #[wasm_bindgen]
@@ -110,10 +116,10 @@ pub async fn request_map(
 }
 
 #[wasm_bindgen]
-pub fn load_gps_from_string(input: &str) -> Gps {
+pub fn load_gps_from_string(input: &str, autodetect_waypoints: bool) -> Gps {
     console_error_panic_hook::set_once();
     let reader = std::io::Cursor::new(input);
-    Gps::new(reader)
+    Gps::new(reader, autodetect_waypoints)
 }
 
 #[wasm_bindgen]
@@ -126,14 +132,14 @@ pub fn gps_from_area(xmin: f64, ymin: f64, xmax: f64, ymax: f64) -> Gps {
     ])
 }
 
-pub fn load_gps_from_file(path: &str) -> std::io::Result<Gps> {
+pub fn load_gps_from_file(path: &str, autodetect_waypoints: bool) -> std::io::Result<Gps> {
     let gpx_file = std::fs::File::open(path)?;
     let gpx_reader = std::io::BufReader::new(gpx_file);
-    Ok(Gps::new(gpx_reader))
+    Ok(Gps::new(gpx_reader, autodetect_waypoints))
 }
 
 impl Gps {
-    fn new<R: Read>(gpx_reader: R) -> Self {
+    fn new<R: Read>(gpx_reader: R, autodetect_waypoints: bool) -> Self {
         // load all points composing the trace and mark commented points
         // as special waypoints.
         let (mut waypoints, p, heights) = parse_gpx_points(gpx_reader);
@@ -181,11 +187,12 @@ impl Gps {
         };
         Gps {
             waypoints: Some(waypoints),
-            path: Some(p),
+            path: Some(if autodetect_waypoints { p } else { rp }),
             map_polygon,
             map: None,
             interests: Vec::new(),
             heights: Some(heights),
+            autodetect_waypoints,
         }
     }
     pub fn detect_crossroads(&mut self) {
@@ -209,6 +216,7 @@ impl Gps {
             map: None,
             interests: Vec::new(),
             heights: None,
+            autodetect_waypoints: false,
         }
     }
     pub async fn request_map<P: AsRef<std::path::Path>>(
@@ -222,7 +230,9 @@ impl Gps {
         self.map = Some(map);
         self.interests = interests;
         self.clip_map();
-        self.detect_crossroads();
+        if self.autodetect_waypoints {
+            self.detect_crossroads();
+        }
         self.add_waypoints_to_interests();
     }
     fn add_waypoints_to_interests(&mut self) {
@@ -240,7 +250,9 @@ impl Gps {
             self.map = Some(map);
             self.interests = interests;
             self.clip_map();
-            self.detect_crossroads();
+            if self.autodetect_waypoints {
+                self.detect_crossroads();
+            }
             self.add_waypoints_to_interests();
         })
     }
