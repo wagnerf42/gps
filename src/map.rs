@@ -444,10 +444,53 @@ fn compress_tile(
 ) -> Vec<[[u8; 2]; 2]> {
     let mut compressed_ways = Vec::new();
 
+    // WIP: if we enable footways tile 1754 is huge in poisat2.gpx
     // eprintln!(
     //     "compressing tile {tile_x}/{tile_y} ({} ways)",
     //     tile_ways.len()
     // );
+    // if tile_x == 2884 && tile_y == 22594 {
+    //     eprintln!("{tile_id}");
+    // }
+    // if tile_id == 1754 {
+    //     let mut hashed_ways: HashMap<(i32, i32), Vec<(WayId, [[u8; 2]; 2])>> = HashMap::new();
+    //     for global_way_id in tile_ways.iter() {
+    //         let mut new_way = Vec::new();
+    //         for node in ways[*global_way_id as usize]
+    //             .iter()
+    //             .map(|&i| &nodes[i as usize])
+    //         {
+    //             let new_node = node.encode(tile_x, tile_y, side);
+    //             new_way.push(new_node);
+    //         }
+    //         if new_way[0] > new_way[1] {
+    //             new_way.reverse();
+    //         }
+    //         let [x1, y1] = new_way[0];
+    //         let [x2, y2] = new_way[1];
+    //         let x1 = x1 as f64;
+    //         let y1 = y1 as f64;
+    //         let x2 = x2 as f64;
+    //         let y2 = y2 as f64;
+    //         let key = if x1 == x2 {
+    //             (std::i32::MAX, x1 as i32)
+    //         } else {
+    //             let slope = (y2 - y1) / (x2 - x1);
+    //             let integer_slope = (slope * 8.).floor() as i32;
+    //             let y_origin = y1 - x1 * slope;
+    //             (integer_slope, y_origin.floor() as i32)
+    //         };
+    //         hashed_ways
+    //             .entry(key)
+    //             .or_default()
+    //             .push((*global_way_id, [new_way[0], new_way[1]]));
+    //     }
+    //     for (key, mut aligned_ways) in hashed_ways {
+    //         aligned_ways.sort_by_key(|&(_, [[x, _], _])| x);
+    //         eprintln!("{key:?} aligned: {:?}", aligned_ways);
+    //     }
+    //     todo!()
+    // }
     for (local_way_id, global_way_id) in tile_ways.iter().enumerate() {
         let mut new_way = Vec::new();
         for node in ways[*global_way_id as usize]
@@ -464,6 +507,9 @@ fn compress_tile(
                 local_way_id: local_way_id as u8,
             },
         );
+        // if tile_id == 1754 {
+        //     eprintln!("way: {new_way:?}");
+        // }
         compressed_ways.push([new_way[0], new_way[1]]);
     }
 
