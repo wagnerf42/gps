@@ -196,11 +196,11 @@ impl Gps {
         }
     }
     pub fn detect_crossroads(&mut self) {
-        let (mut path, map, mut waypoints) = (&mut self.path, &self.map, &mut self.waypoints);
+        let (path, map, waypoints) = (&mut self.path, &self.map, &mut self.waypoints);
         if let Some(path) = path {
             if let Some(map) = map {
                 if let Some(waypoints) = waypoints {
-                    if waypoints.len() == 2 {
+                    if waypoints.len() <= 2 {
                         // if we have two waypoints it's start and end
                         map.detect_crossroads(path, waypoints);
                     }
