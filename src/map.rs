@@ -6,10 +6,12 @@ use std::{
     path::Path,
 };
 
-pub const SIDE: f64 = 1. / 500.; // excellent value
+pub const SIDE: f64 = 1. / 750.; // excellent value
                                  // with it we have few segments crossing several squares
                                  // and what's more we can use 1 byte for each coordinate inside the square
                                  // for 1 meter precision
+                                 // Note that the best value for size is 1/500
+                                 // But we go for 1/750 because this enables is to use less pixels in the watch's display
 
 use crate::{CNodeId, CWayId, Node, NodeId, TileKey, WayId};
 
