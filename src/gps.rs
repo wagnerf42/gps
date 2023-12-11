@@ -139,7 +139,7 @@ pub fn load_gps_from_file(path: &str, autodetect_waypoints: bool) -> std::io::Re
 }
 
 impl Gps {
-    fn new<R: Read>(gpx_reader: R, autodetect_waypoints: bool) -> Self {
+    fn new<R: Read>(gpx_reader: R, mut autodetect_waypoints: bool) -> Self {
         // load all points composing the trace and mark commented points
         // as special waypoints.
         let (mut waypoints, p, heights) = parse_gpx_points(gpx_reader);
@@ -165,6 +165,11 @@ impl Gps {
         // detect_sharp_turns(&p, &mut waypoints);
         waypoints.insert(p.first().copied().unwrap());
         waypoints.insert(p.last().copied().unwrap());
+
+        if waypoints.len() > 2 {
+            // if we have some manual waypoints, let's not detect
+            autodetect_waypoints = false;
+        }
 
         let rp = simplify_path_around_waypoints(&p, &waypoints);
 
