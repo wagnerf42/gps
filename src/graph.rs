@@ -241,6 +241,7 @@ impl Map {
             }
         }
         let final_path = crate::gps::simplify_path_around_waypoints(path, waypoints);
+        *path = final_path;
         return;
 
         // let tiled_segments = self.hash_segments_on_tiles(&rp);
