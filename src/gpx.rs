@@ -82,7 +82,7 @@ pub async fn request_maps_from<P: AsRef<std::path::Path>>(
     ski: bool,
 ) -> Result<(Vec<Map>, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
     crate::log("requesting map");
-    let osm_answer = request(polygon, true).await?;
+    let osm_answer = request(polygon, ski).await?;
     crate::log("got the request answer");
     eprintln!("we got the map, saving it");
     if let Some(map_name) = map_name {
