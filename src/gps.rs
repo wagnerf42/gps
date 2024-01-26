@@ -6,7 +6,6 @@ use std::{
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    detect_sharp_turns,
     gpx::{save_heights, save_path},
     parse_gpx_points, save_svg, save_tiled_interests, simplify_path,
     svg::{save_svg_to_writer, UniColorNodes},
@@ -15,11 +14,12 @@ use crate::{
 
 #[wasm_bindgen]
 pub struct Gps {
+    ski: bool,
     path: Option<Vec<Node>>,
     waypoints: Option<HashSet<Node>>,
     map_polygon: Vec<Node>,
     interests: Vec<(usize, Node)>,
-    map: Option<Map>,
+    maps: Vec<Map>,
     heights: Option<HashMap<Node, f64>>,
     autodetect_waypoints: bool,
 }
@@ -33,9 +33,12 @@ pub fn disable_elevation(gps: &mut Gps) {
 pub fn get_gps_map_svg(gps: &Gps) -> String {
     let mut svg_string: Vec<u8> = Vec::new();
     let bounding_box = gps
-        .map
-        .as_ref()
+        .maps
+        .iter()
         .map(|m| m.bounding_box())
+        .reduce(|(x1, y1, x2, y2), (x3, y3, x4, y4)| {
+            (x1.min(x3), y1.min(y3), x2.max(x4), y2.max(y4))
+        })
         .unwrap_or_else(|| {
             gps.path
                 .as_ref()
@@ -46,6 +49,7 @@ pub fn get_gps_map_svg(gps: &Gps) -> String {
                 })
                 .unwrap()
         });
+
     let path_slice = if let Some(p) = &gps.path {
         p.as_slice()
     } else {
@@ -54,10 +58,9 @@ pub fn get_gps_map_svg(gps: &Gps) -> String {
     save_svg_to_writer(
         &mut svg_string,
         bounding_box,
-        gps.map
-            .as_ref()
+        gps.maps
+            .iter()
             .map(|m| m as &dyn Svg<_>)
-            .into_iter()
             .chain(std::iter::once(&path_slice as &dyn Svg<_>))
             .chain(std::iter::once(&UniColorNodes(
                 gps.interests.iter().map(|(_, n)| *n).collect::<Vec<_>>(),
@@ -112,34 +115,41 @@ pub async fn request_map(
         (key4.to_owned(), value4.to_owned()),
     ];
     let no_map: Option<&str> = None;
-    gps.request_map(&interests, no_map).await
+    gps.request_maps(&interests, no_map).await
 }
 
 #[wasm_bindgen]
 pub fn load_gps_from_string(input: &str, autodetect_waypoints: bool) -> Gps {
     console_error_panic_hook::set_once();
     let reader = std::io::Cursor::new(input);
-    Gps::new(reader, autodetect_waypoints)
+    Gps::new(reader, autodetect_waypoints, crate::map::DEFAULT_SIDE)
 }
 
 #[wasm_bindgen]
-pub fn gps_from_area(xmin: f64, ymin: f64, xmax: f64, ymax: f64) -> Gps {
-    Gps::from_area(vec![
-        Node::new(xmin, ymin),
-        Node::new(xmax, ymin),
-        Node::new(xmax, ymax),
-        Node::new(xmin, ymax),
-    ])
+pub fn gps_from_area(xmin: f64, ymin: f64, xmax: f64, ymax: f64, ski: bool) -> Gps {
+    Gps::from_area(
+        vec![
+            Node::new(xmin, ymin),
+            Node::new(xmax, ymin),
+            Node::new(xmax, ymax),
+            Node::new(xmin, ymax),
+        ],
+        ski,
+    )
 }
 
 pub fn load_gps_from_file(path: &str, autodetect_waypoints: bool) -> std::io::Result<Gps> {
     let gpx_file = std::fs::File::open(path)?;
     let gpx_reader = std::io::BufReader::new(gpx_file);
-    Ok(Gps::new(gpx_reader, autodetect_waypoints))
+    Ok(Gps::new(
+        gpx_reader,
+        autodetect_waypoints,
+        crate::map::DEFAULT_SIDE,
+    ))
 }
 
 impl Gps {
-    fn new<R: Read>(gpx_reader: R, autodetect_waypoints: bool) -> Self {
+    fn new<R: Read>(gpx_reader: R, autodetect_waypoints: bool, side: f64) -> Self {
         // load all points composing the trace and mark commented points
         // as special waypoints.
         let (mut waypoints, p, heights) = parse_gpx_points(gpx_reader);
@@ -172,10 +182,10 @@ impl Gps {
         let (mut ymin, mut ymax) = rp.iter().map(|p| p.y).minmax().into_option().unwrap();
         let map_polygon = if (xmax - xmin) * (ymax - ymin) < 0.2 * 0.2 {
             // osm should be able to answer this full rectangle
-            xmin -= crate::SIDE * 2.;
-            ymin -= crate::SIDE * 2.;
-            xmax += crate::SIDE * 2.;
-            ymax += crate::SIDE * 2.;
+            xmin -= side * 2.;
+            ymin -= side * 2.;
+            xmax += side * 2.;
+            ymax += side * 2.;
             vec![
                 Node::new(xmin, ymin),
                 Node::new(xmin, ymax),
@@ -183,53 +193,58 @@ impl Gps {
                 Node::new(xmax, ymin),
             ]
         } else {
-            inflate_polyline(&rp, crate::SIDE * 2.) // two tiles on each side
+            inflate_polyline(&rp, side * 2.) // two tiles on each side
         };
         Gps {
+            ski: false,
             waypoints: Some(waypoints),
             path: Some(if autodetect_waypoints { p } else { rp }),
             map_polygon,
-            map: None,
+            maps: Vec::new(),
             interests: Vec::new(),
             heights: Some(heights),
             autodetect_waypoints,
         }
     }
     pub fn detect_crossroads(&mut self) {
-        let (path, map, waypoints) = (&mut self.path, &self.map, &mut self.waypoints);
+        let (path, maps, waypoints) = (&mut self.path, &self.maps, &mut self.waypoints);
         if let Some(path) = path {
-            if let Some(map) = map {
+            if maps.len() == 1 {
                 if let Some(waypoints) = waypoints {
                     if waypoints.len() <= 2 {
                         // if we have two waypoints it's start and end
-                        map.detect_crossroads(path, waypoints);
+                        maps[0].detect_crossroads(path, waypoints);
                     }
                 }
+            } else {
+                eprintln!("TODO: we need to collapse all maps in order to detect crossroads");
             }
         }
     }
-    pub fn from_area(area: Vec<Node>) -> Self {
+    pub fn from_area(area: Vec<Node>, ski: bool) -> Self {
         Gps {
+            ski,
             waypoints: None,
             path: None,
             map_polygon: area,
-            map: None,
+            maps: Vec::new(),
             interests: Vec::new(),
             heights: None,
             autodetect_waypoints: false,
         }
     }
-    pub async fn request_map<P: AsRef<std::path::Path>>(
+    pub async fn request_maps<P: AsRef<std::path::Path>>(
         &mut self,
         key_values: &[(String, String)],
         map_name: Option<P>,
     ) {
-        let (map, interests) = crate::request_map_from(&self.map_polygon, key_values, map_name)
-            .await
-            .expect("failed requesting map");
-        self.map = Some(map);
+        let (maps, interests) =
+            crate::request_maps_from(&self.map_polygon, key_values, map_name, self.ski)
+                .await
+                .expect("failed requesting map");
+        self.maps = maps;
         self.interests = interests;
-        self.clip_map();
+        self.clip_maps();
         if self.autodetect_waypoints {
             self.detect_crossroads();
         }
@@ -246,10 +261,10 @@ impl Gps {
         map_name: P,
         key_values: &[(String, String)],
     ) -> std::io::Result<()> {
-        crate::load_map_and_interests(&map_name, key_values).map(|(map, interests)| {
-            self.map = Some(map);
+        crate::load_maps_and_interests(&map_name, key_values, self.ski).map(|(maps, interests)| {
+            self.maps = maps;
             self.interests = interests;
-            self.clip_map();
+            self.clip_maps();
             if self.autodetect_waypoints {
                 self.detect_crossroads();
             }
@@ -269,97 +284,101 @@ impl Gps {
         let waypoints_nodes =
             UniColorNodes(self.waypoints.iter().flatten().cloned().collect::<Vec<_>>());
 
-        let map = self.map.as_ref().unwrap();
+        let bounding_box = self
+            .maps
+            .iter()
+            .map(|m| m.bounding_box())
+            .reduce(|(x1, y1, x2, y2), (x3, y3, x4, y4)| {
+                (x1.min(x3), y1.min(y3), x2.max(x4), y2.max(y4))
+            })
+            .unwrap();
+
+        let mut to_display = self.maps.iter().map(|m| m as SvgW).collect::<Vec<_>>();
+
         if let Some(gpx_path) = &self.path {
-            save_svg(
-                svg_path,
-                map.bounding_box(),
-                [
-                    map as SvgW,
-                    (&gpx_path.as_slice()) as SvgW,
-                    &interests_nodes as SvgW,
-                    &waypoints_nodes as SvgW,
-                ],
-            )
+            let slice = gpx_path.as_slice();
+            to_display.push(&slice as SvgW);
+            to_display.push(&interests_nodes as SvgW);
+            to_display.push(&waypoints_nodes as SvgW);
+            save_svg(svg_path, bounding_box, to_display)
         } else {
-            save_svg(
-                svg_path,
-                map.bounding_box(),
-                [
-                    map as SvgW,
-                    &interests_nodes as SvgW,
-                    &waypoints_nodes as SvgW,
-                ],
-            )
+            to_display.push(&interests_nodes as SvgW);
+            to_display.push(&waypoints_nodes as SvgW);
+            save_svg(svg_path, bounding_box, to_display)
         }
     }
 
-    fn clip_map(&mut self) {
-        let map = self.map.as_mut().unwrap();
-        let tiles_wanted = if let Some(gpx_path) = &self.path {
-            let path_map: Map = gpx_path.clone().into();
-            path_map
-                .non_empty_tiles()
-                .map(|(x, y)| {
-                    (
-                        (x as isize + path_map.first_tile.0 - map.first_tile.0) as usize,
-                        (y as isize + path_map.first_tile.1 - map.first_tile.1) as usize,
-                    )
-                })
-                .flat_map(|(x, y)| {
-                    (x.saturating_sub(1)..(x + 2))
-                        .flat_map(move |nx| (y.saturating_sub(1)..(y + 2)).map(move |ny| (nx, ny)))
-                })
-                .collect::<HashSet<(usize, usize)>>()
-        } else {
-            let xmin = self.map_polygon[0].x;
-            let ymin = self.map_polygon[0].y;
-            let xmax = self.map_polygon[2].x;
-            let ymax = self.map_polygon[2].y;
-            let width = xmax - xmin;
-            let height = ymax - ymin;
+    fn clip_maps(&mut self) {
+        for map in &mut self.maps {
+            let side = map.side;
+            let tiles_wanted = if let Some(gpx_path) = &self.path {
+                let path_map = Map::from_path(gpx_path.clone(), side);
+                path_map
+                    .non_empty_tiles()
+                    .map(|(x, y)| {
+                        (
+                            (x as isize + path_map.first_tile.0 - map.first_tile.0) as usize,
+                            (y as isize + path_map.first_tile.1 - map.first_tile.1) as usize,
+                        )
+                    })
+                    .flat_map(|(x, y)| {
+                        (x.saturating_sub(1)..(x + 2)).flat_map(move |nx| {
+                            (y.saturating_sub(1)..(y + 2)).map(move |ny| (nx, ny))
+                        })
+                    })
+                    .collect::<HashSet<(usize, usize)>>()
+            } else {
+                let xmin = self.map_polygon[0].x;
+                let ymin = self.map_polygon[0].y;
+                let xmax = self.map_polygon[2].x;
+                let ymax = self.map_polygon[2].y;
+                let width = xmax - xmin;
+                let height = ymax - ymin;
 
-            let min_x_tile = (xmin / crate::SIDE).floor() as isize;
-            let max_x_tile = ((xmin + width) / crate::SIDE).floor() as isize;
-            let min_y_tile = (ymin / crate::SIDE).floor() as isize;
-            let max_y_tile = ((ymin + height) / crate::SIDE).floor() as isize;
-            (min_x_tile..=max_x_tile)
-                .cartesian_product(min_y_tile..=max_y_tile)
-                .map(|(x, y)| {
-                    (
-                        (x - map.first_tile.0) as usize,
-                        (y - map.first_tile.1) as usize,
-                    )
-                })
-                .collect::<HashSet<_>>()
-        };
-        map.keep_tiles(&tiles_wanted);
-        self.interests.retain(|(_, p)| {
-            let tile_x = ((p.x / crate::SIDE).floor() as isize - map.first_tile.0) as usize;
-            let tile_y = ((p.y / crate::SIDE).floor() as isize - map.first_tile.1) as usize;
-            tiles_wanted.contains(&(tile_x, tile_y))
-        });
-        map.fit_map();
+                let min_x_tile = (xmin / side).floor() as isize;
+                let max_x_tile = ((xmin + width) / side).floor() as isize;
+                let min_y_tile = (ymin / side).floor() as isize;
+                let max_y_tile = ((ymin + height) / side).floor() as isize;
+                (min_x_tile..=max_x_tile)
+                    .cartesian_product(min_y_tile..=max_y_tile)
+                    .map(|(x, y)| {
+                        (
+                            (x - map.first_tile.0) as usize,
+                            (y - map.first_tile.1) as usize,
+                        )
+                    })
+                    .collect::<HashSet<_>>()
+            };
+            map.keep_tiles(&tiles_wanted);
+            self.interests.retain(|(_, p)| {
+                let tile_x = ((p.x / side).floor() as isize - map.first_tile.0) as usize;
+                let tile_y = ((p.y / side).floor() as isize - map.first_tile.1) as usize;
+                tiles_wanted.contains(&(tile_x, tile_y))
+            });
+            map.fit_map();
+        }
     }
 
     pub fn write_gps<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let map = self.map.as_ref().unwrap();
         eprintln!("saving interests");
-        save_tiled_interests(&self.interests, map.side, writer)?;
+        let side = self.maps[0].side;
+        save_tiled_interests(&self.interests, side, writer)?;
         if let Some(gpx_path) = &self.path {
             if let Some(waypoints) = &self.waypoints {
                 eprintln!("saving the path");
                 save_path(gpx_path, waypoints, writer)?;
                 eprintln!("saving the pathtiles");
-                let path: Map = gpx_path.clone().into();
-                path.save_tiles(writer, &[255, 0, 0])?;
+                let path = Map::from_path(gpx_path.clone(), side);
+                path.save_tiles(writer)?;
             }
             if let Some(heights) = &self.heights {
                 save_heights(gpx_path, heights, writer)?;
             }
         }
         eprintln!("saving the maptiles");
-        map.save_tiles(writer, &[0, 0, 0])?;
+        for map in &self.maps {
+            map.save_tiles(writer)?;
+        }
         eprintln!("all is saved");
 
         Ok(())

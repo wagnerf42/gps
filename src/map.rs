@@ -6,12 +6,13 @@ use std::{
     path::Path,
 };
 
-pub const SIDE: f64 = 1. / 750.; // excellent value
-                                 // with it we have few segments crossing several squares
-                                 // and what's more we can use 1 byte for each coordinate inside the square
-                                 // for 1 meter precision
-                                 // Note that the best value for size is 1/500
-                                 // But we go for 1/750 because this enables is to use less pixels in the watch's display
+// pub const SIDE: f64 = 1. / 150.; // ski value
+pub const DEFAULT_SIDE: f64 = 1. / 750.; // excellent value
+                                         // with it we have few segments crossing several squares
+                                         // and what's more we can use 1 byte for each coordinate inside the square
+                                         // for 1 meter precision
+                                         // Note that the best value for size is 1/500
+                                         // But we go for 1/750 because this enables is to use less pixels in the watch's display
 
 use crate::{CNodeId, CWayId, Node, NodeId, TileKey, WayId};
 
@@ -24,6 +25,7 @@ pub enum BlockType {
 }
 
 pub struct Map {
+    pub color: [u8; 3],
     pub binary_ways: Vec<u8>,
     pub start_coordinates: (f64, f64),
     pub first_tile: (isize, isize),
@@ -33,49 +35,92 @@ pub struct Map {
     pub streets: HashMap<String, Vec<CWayId>>,
 }
 
-impl From<Vec<Node>> for Map {
-    fn from(mut nodes: Vec<Node>) -> Self {
-        let mut ways = vec![(0..nodes.len() as u64).collect::<Vec<_>>()];
-        let mut streets = HashMap::new();
-        crate::cut_segments_on_tiles(&mut nodes, &mut ways, SIDE);
-        let ways = crate::cut_ways_into_edges(ways, &mut streets);
-        let tiles = crate::group_ways_in_tiles(&nodes, &ways, SIDE);
-        Map::new(&nodes, &ways, streets, &tiles, SIDE)
-    }
-}
-
-pub fn load_map_and_interests<P: AsRef<Path>>(
+pub fn load_maps_and_interests<P: AsRef<Path>>(
     path: P,
     key_values: &[(String, String)],
-) -> std::io::Result<(Map, Vec<(usize, Node)>)> {
+    ski: bool,
+) -> std::io::Result<(Vec<Map>, Vec<(usize, Node)>)> {
     let mut answer = Vec::new();
     std::io::BufReader::new(std::fs::File::open(path.as_ref())?).read_to_end(&mut answer)?;
     let string = std::str::from_utf8(&answer).unwrap();
-    Ok(map_and_interests_from_string(string, key_values))
+    let side = if ski {
+        1. / 150.
+    } else {
+        crate::map::DEFAULT_SIDE
+    };
+    Ok(maps_and_interests_from_string(
+        string, key_values, ski, side,
+    ))
 }
 
-pub fn map_and_interests_from_string(
+pub fn maps_and_interests_from_string(
     s: &str,
     key_values: &[(String, String)],
-) -> (Map, Vec<(usize, Node)>) {
+    ski: bool,
+    side: f64,
+) -> (Vec<Map>, Vec<(usize, Node)>) {
     crate::log("map: parsing xml");
-    let (nodes, mut ways, mut streets, interests) = crate::parse_osm_xml(s, key_values);
-    crate::log("map: building");
-    let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
-    let mut ways = crate::sanitize_ways(ways, &mut streets);
-    crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
-    crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, SIDE);
-    let ways = crate::cut_ways_into_edges(ways, &mut streets);
-    let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, SIDE);
-    crate::log("map: done");
-    (
-        Map::new(&renamed_nodes, &ways, streets, &tiles, SIDE),
-        interests,
-    )
+    let (nodes, mut ways, mut streets, pistes, interests) = crate::parse_osm_xml(s, key_values);
+    if ski {
+        // red is 254 because at 255 gipy would display it thick
+        let colors = [
+            [0, 255, 0],
+            [0, 0, 255],
+            [254, 0, 0],
+            [0, 0, 0],
+            [255, 0, 255],
+        ];
+        let mut maps = Vec::new();
+        for (color, pistes) in colors.into_iter().zip(&pistes) {
+            let nodes = nodes.clone();
+            let mut ways = ways
+                .iter()
+                .filter(|&(id, _)| pistes.contains(id))
+                .map(|(id, nodes)| (*id, nodes.clone()))
+                .collect::<HashMap<_, _>>();
+            if ways.is_empty() {
+                continue;
+            }
+            let mut streets = HashMap::new();
+            let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
+            let mut ways = crate::sanitize_ways(ways, &mut streets);
+            crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
+            crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
+            let ways = crate::cut_ways_into_edges(ways, &mut streets);
+            let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, side);
+            let map = Map::new(color, &renamed_nodes, &ways, streets, &tiles, side);
+            maps.push(map);
+        }
+        if maps.is_empty() {
+            crate::log("map: no ski pistes found");
+        }
+        (maps, interests)
+    } else {
+        crate::log("map: building");
+        let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
+        let mut ways = crate::sanitize_ways(ways, &mut streets);
+        crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
+        crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
+        let ways = crate::cut_ways_into_edges(ways, &mut streets);
+        let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, side);
+        crate::log("map: done");
+        (
+            vec![Map::new(
+                [0, 0, 0],
+                &renamed_nodes,
+                &ways,
+                streets,
+                &tiles,
+                side,
+            )],
+            interests,
+        )
+    }
 }
 
 impl Map {
     pub fn new(
+        color: [u8; 3],
         nodes: &[Node],
         ways: &[[NodeId; 2]],
         streets: HashMap<String, Vec<WayId>>,
@@ -134,6 +179,7 @@ impl Map {
             .collect();
 
         Map {
+            color,
             binary_ways,
             first_tile: (xmin, ymin),
             start_coordinates: (xmin as f64 * side, ymin as f64 * side),
@@ -142,6 +188,15 @@ impl Map {
             side,
             streets: new_streets,
         }
+    }
+
+    pub fn from_path(mut nodes: Vec<Node>, side: f64) -> Self {
+        let mut ways = vec![(0..nodes.len() as u64).collect::<Vec<_>>()];
+        let mut streets = HashMap::new();
+        crate::cut_segments_on_tiles(&mut nodes, &mut ways, side);
+        let ways = crate::cut_ways_into_edges(ways, &mut streets);
+        let tiles = crate::group_ways_in_tiles(&nodes, &ways, side);
+        Map::new([255, 0, 0], &nodes, &ways, streets, &tiles, side)
     }
 
     pub fn non_empty_tiles(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
@@ -154,9 +209,9 @@ impl Map {
         })
     }
 
-    pub fn save_tiles<W: Write>(&self, writer: &mut W, color: &[u8; 3]) -> std::io::Result<()> {
+    pub fn save_tiles<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         writer.write_all(&[BlockType::Tiles as u8])?;
-        writer.write_all(color)?;
+        writer.write_all(&self.color)?;
 
         // first, the header
         writer.write_all(&(self.first_tile.0 as i32).to_le_bytes())?;

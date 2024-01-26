@@ -7,7 +7,7 @@ in pkgs.mkShell {
   buildInputs = with pkgs; [
   wasm-bindgen-cli
     wasm-pack
-    pkgconfig
+    pkg-config
     openssl
     nodePackages.eslint
     nodePackages.prettier

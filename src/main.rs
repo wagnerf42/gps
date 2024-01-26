@@ -28,19 +28,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let map_name: std::path::PathBuf =
             format!("area_[{xmin}_{ymin}_{width}_{height}].map").into();
 
-        let gps = gps::Gps::from_area(vec![
-            Node::new(xmin, ymin),
-            Node::new(xmin + width, ymin),
-            Node::new(xmin + width, ymin + height),
-            Node::new(xmin, ymin + height),
-        ]);
+        let gps = gps::Gps::from_area(
+            vec![
+                Node::new(xmin, ymin),
+                Node::new(xmin + width, ymin),
+                Node::new(xmin + width, ymin + height),
+                Node::new(xmin, ymin + height),
+            ],
+            false,
+        );
         (gps, map_name)
     };
     let mut gps_name: std::path::PathBuf = map_name.clone();
     gps_name.set_extension("gps");
 
     if gps.load_map(&map_name, &key_values).is_err() {
-        gps.request_map(&key_values, Some(map_name)).await
+        gps.request_maps(&key_values, Some(map_name)).await
     }
     // disable_elevation(&mut gps);
     gps.save_svg("map.svg").expect("failed saving svg file");

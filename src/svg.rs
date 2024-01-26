@@ -3,7 +3,7 @@ use std::{collections::HashSet, io::Write};
 
 use itertools::Itertools;
 
-use crate::{grid_coordinates_between, Map, Node};
+use crate::{Map, Node};
 
 pub type SvgW<'a> = &'a dyn Svg<std::io::BufWriter<std::fs::File>>;
 
@@ -85,7 +85,7 @@ impl<W: Write> Svg<W> for Map {
     }
 }
 
-pub(crate) struct MapTiles<'a> {
+pub struct MapTiles<'a> {
     pub tiles: &'a HashSet<(usize, usize)>,
     pub map: &'a Map,
 }

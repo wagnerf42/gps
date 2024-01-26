@@ -18,12 +18,12 @@ pub use simplify::{optimal_simplification, optimal_simplification2, simplify_pat
 mod utils;
 pub use utils::grid_coordinates_between;
 pub mod map;
-pub use map::{load_map_and_interests, map_and_interests_from_string, Map, SIDE};
+pub use map::{load_maps_and_interests, maps_and_interests_from_string, Map};
 mod graph;
 mod svg;
 pub use svg::{save_svg, Svg, SvgW};
 mod gpx;
-pub use crate::gpx::{detect_sharp_turns, parse_gpx_points, request_map_from};
+pub use crate::gpx::{detect_sharp_turns, parse_gpx_points, request_maps_from};
 mod interests;
 mod streets;
 pub use interests::save_tiled_interests;
@@ -53,14 +53,22 @@ pub fn rename_nodes(
     let mut new_ids = HashMap::new();
     let mut renamed_nodes = Vec::new();
     for way in ways.values_mut() {
-        for node in way {
-            let new_id = new_ids.entry(*node).or_insert_with(|| {
-                let id = renamed_nodes.len() as u64;
-                renamed_nodes.push(nodes[node]);
-                id
-            });
-            *node = *new_id
+        let mut remaining_nodes_in_way = Vec::new();
+        for node_id in way.iter() {
+            if let Some(new_id) = new_ids.get(node_id) {
+                remaining_nodes_in_way.push(*new_id);
+            } else {
+                if let Some(node) = nodes.get(node_id) {
+                    let id = renamed_nodes.len() as u64;
+                    renamed_nodes.push(*node);
+                    new_ids.insert(*node_id, id);
+                    remaining_nodes_in_way.push(id);
+                } else {
+                    eprintln!("discarding unknown node {node_id}");
+                }
+            }
         }
+        *way = remaining_nodes_in_way
     }
     renamed_nodes
 }

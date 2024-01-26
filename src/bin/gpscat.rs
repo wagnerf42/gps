@@ -116,7 +116,7 @@ impl TilesOffsets {
         let type_size = reader.read_u8()?;
         let entry_size = reader.read_u8()? as usize;
         let non_empty_tiles_number = reader.read_u16::<LittleEndian>()? as usize;
-        let mut non_empty_tiles = std::iter::repeat_with(|| -> std::io::Result<usize> {
+        let non_empty_tiles = std::iter::repeat_with(|| -> std::io::Result<usize> {
             reader.read_u16::<LittleEndian>().map(|s| s as usize)
         })
         .take(non_empty_tiles_number)
@@ -293,20 +293,21 @@ fn main() {
     if let Some(filename) = std::env::args().nth(1) {
         let gps = Gps::new(&filename).unwrap();
 
-        let path = gps.path.as_ref().unwrap();
-        path.points.iter().enumerate().for_each(|(i, p)| {
-            if path.waypoints[i / 8] & (1 << (i % 8)) != 0 {
-                eprint!("*** ");
-            }
-            eprintln!(
-                "point num {i} : {p:?} (height: {})",
-                gps.heights
-                    .as_ref()
-                    .map(|h| h[i])
-                    .clone()
-                    .unwrap_or_default()
-            )
-        });
+        if let Some(path) = gps.path.as_ref() {
+            path.points.iter().enumerate().for_each(|(i, p)| {
+                if path.waypoints[i / 8] & (1 << (i % 8)) != 0 {
+                    eprint!("*** ");
+                }
+                eprintln!(
+                    "point num {i} : {p:?} (height: {})",
+                    gps.heights
+                        .as_ref()
+                        .map(|h| h[i])
+                        .clone()
+                        .unwrap_or_default()
+                )
+            });
+        }
 
         let bbox = gps.maps.last().unwrap().dimensions.bounding_box();
         save_svg(

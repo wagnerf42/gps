@@ -1,23 +1,37 @@
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use xml::{reader::XmlEvent, EventReader};
 
 use crate::{Node, NodeId, WayId};
 
-pub async fn request(polygon: &[Node]) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn request(polygon: &[Node], ski: bool) -> Result<String, Box<dyn std::error::Error>> {
     let polygon_string: String = polygon
         .iter()
         .flat_map(|n| [n.y, n.x])
         .inspect(|c| assert!(!c.is_nan()))
         .join(" ");
-    let query = format!(
-        "(
-        way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"](poly:\"{polygon_string}\");
+    let query = if ski {
+        format!(
+            "(
+            way[\"piste:type\"=\"downhill\"](poly:\"{polygon_string}\");
+            >;
+            way[\"aerialway\"](poly:\"{polygon_string}\");
+            >;
+            node(poly:\"{polygon_string}\");
+            );
+            out body;"
+        )
+    } else {
+        let wanted_ways = "way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"]";
+        format!(
+            "(
+        {wanted_ways}(poly:\"{polygon_string}\");
         >;
         node(poly:\"{polygon_string}\");
         );
         out body;",
-    );
+        )
+    };
     eprintln!("request: {polygon_string:?}");
     let client = reqwest::Client::builder()
         //.user_agent("osm-geo-mapper")
@@ -41,13 +55,15 @@ pub fn parse_osm_xml(
     HashMap<NodeId, Node>,
     HashMap<WayId, Vec<NodeId>>,
     HashMap<String, Vec<WayId>>,
-    Vec<(usize, Node)>, // interests (type + node)
+    Vec<HashSet<WayId>>, // pistes (index is difficulty)
+    Vec<(usize, Node)>,  // interests (type + node)
 ) {
     let key_values: HashMap<(&String, &String), usize> = key_values
         .iter()
         .enumerate()
         .map(|(i, (key, value))| ((key, value), i + 1))
         .collect();
+    let mut pistes = vec![HashSet::new(); 5];
     let parser = EventReader::new(xml.as_bytes());
     let mut current_node = None;
     let mut current_way: Option<(WayId, Vec<NodeId>)> = None;
@@ -56,6 +72,7 @@ pub fn parse_osm_xml(
     let mut streets: HashMap<String, Vec<WayId>> = HashMap::new();
     let mut interests = Vec::new();
     let mut current_interest = None;
+    let mut piste = None;
     let mut footway = false;
     let mut bicycle = false;
     let mut discard_way = false;
@@ -90,6 +107,18 @@ pub fn parse_osm_xml(
 
                     if let Some(key) = key {
                         if let Some(value) = value {
+                            if key == "piste:difficulty" {
+                                piste = match value.as_str() {
+                                    "novice" => Some(0),
+                                    "easy" => Some(1),
+                                    "intermediate" => Some(2),
+                                    "advanced" => Some(3),
+                                    _ => None,
+                                };
+                            }
+                            if key == "aerialway" {
+                                piste = Some(4)
+                            }
                             if key == "bicycle" && value == "yes" {
                                 bicycle = true;
                             }
@@ -153,6 +182,10 @@ pub fn parse_osm_xml(
                             if let Some(street_name) = current_street_name.take() {
                                 streets.entry(street_name.to_owned()).or_default().push(id)
                             }
+
+                            if let Some(piste) = piste.take() {
+                                pistes[piste].insert(id);
+                            }
                         }
                     }
                 }
@@ -172,5 +205,5 @@ pub fn parse_osm_xml(
             _ => {}
         }
     }
-    (nodes, ways, streets, interests)
+    (nodes, ways, streets, pistes, interests)
 }

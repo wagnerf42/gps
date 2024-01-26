@@ -6,7 +6,7 @@ use std::{
 use gpx::{read, Gpx};
 use itertools::Itertools;
 
-use crate::{map_and_interests_from_string, request, Map, Node};
+use crate::{maps_and_interests_from_string, request, Map, Node};
 
 const LOWER_SHARP_TURN: f64 = 80.0 * std::f64::consts::PI / 180.0;
 const UPPER_SHARP_TURN: f64 = std::f64::consts::PI * 2.0 - LOWER_SHARP_TURN;
@@ -75,13 +75,14 @@ pub fn detect_sharp_turns(path: &[Node], waypoints: &mut HashSet<Node>) {
         });
 }
 
-pub async fn request_map_from<P: AsRef<std::path::Path>>(
+pub async fn request_maps_from<P: AsRef<std::path::Path>>(
     polygon: &[Node],
     key_values: &[(String, String)],
     map_name: Option<P>,
-) -> Result<(Map, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
-    eprintln!("requesting map");
-    let osm_answer = request(polygon).await?;
+    ski: bool,
+) -> Result<(Vec<Map>, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
+    crate::log("requesting map");
+    let osm_answer = request(polygon, true).await?;
     crate::log("got the request answer");
     eprintln!("we got the map, saving it");
     if let Some(map_name) = map_name {
@@ -89,7 +90,17 @@ pub async fn request_map_from<P: AsRef<std::path::Path>>(
         writer.write_all(osm_answer.as_bytes())?;
         eprintln!("we saved the map");
     }
-    Ok(map_and_interests_from_string(&osm_answer, key_values))
+    let side = if ski {
+        1. / 150.
+    } else {
+        crate::map::DEFAULT_SIDE
+    };
+    Ok(maps_and_interests_from_string(
+        &osm_answer,
+        key_values,
+        ski,
+        side,
+    ))
 }
 
 /// save heights for path points.
