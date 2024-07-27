@@ -237,8 +237,8 @@ impl Map {
         let non_empty_tiles = std::iter::once([0, self.tiles_sizes_prefix[0]].as_slice())
             .chain(self.tiles_sizes_prefix.windows(2))
             .enumerate()
-            .filter_map(|(i, w)| if w[0] != w[1] { Some(i as u16) } else { None })
-            .collect::<Vec<u16>>();
+            .filter_map(|(i, w)| if w[0] != w[1] { Some(i) } else { None })
+            .collect::<Vec<usize>>();
         let bytes_number = if self.tiles_sizes_prefix.last().copied().unwrap_or_default() / 4
             <= std::u16::MAX as usize
         {
@@ -250,8 +250,14 @@ impl Map {
         };
         writer.write_all(&[4])?; // size taken by each way
         writer.write_all(&(non_empty_tiles.len() as u16).to_le_bytes())?;
+
+        let bytes_per_tile_index = if self.grid_size.0 * self.grid_size.1 > std::u16::MAX as usize {
+            3
+        } else {
+            2
+        };
         for tile in &non_empty_tiles {
-            writer.write_all(&tile.to_le_bytes())?;
+            writer.write_all(&tile.to_le_bytes()[0..bytes_per_tile_index])?;
         }
         for end in non_empty_tiles
             .iter()

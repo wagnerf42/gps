@@ -112,22 +112,37 @@ struct TilesOffsets {
 }
 
 impl TilesOffsets {
-    fn new<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+    fn new<R: Read>(reader: &mut R, dimensions: &Dimensions) -> std::io::Result<Self> {
         let type_size = reader.read_u8()?;
         let entry_size = reader.read_u8()? as usize;
         let non_empty_tiles_number = reader.read_u16::<LittleEndian>()? as usize;
+        let bytes_per_tile_index =
+            if dimensions.grid_size.0 * dimensions.grid_size.1 <= std::u16::MAX as usize {
+                2
+            } else {
+                3
+            };
+
+        let mut buffy = [0u8; 4];
         let non_empty_tiles = std::iter::repeat_with(|| -> std::io::Result<usize> {
-            reader.read_u16::<LittleEndian>().map(|s| s as usize)
+            if bytes_per_tile_index == 2 {
+                reader.read_u16::<LittleEndian>().map(|s| s as usize)
+            } else {
+                reader.read_exact(&mut buffy[0..3])?;
+                buffy[3] = 0;
+                let mut rdr = std::io::Cursor::new(buffy);
+                rdr.read_u32::<LittleEndian>().map(|s| s as usize)
+            }
         })
         .take(non_empty_tiles_number)
         .collect::<Result<Vec<_>, _>>()?;
-        let mut buffy = [0u8; 4];
+
         let non_empty_tiles_ends = std::iter::repeat_with(|| {
             if type_size == 16 {
                 reader.read_u16::<LittleEndian>().map(|s| s as usize)
             } else {
                 assert_eq!(type_size, 24);
-                reader.read_exact(&mut buffy)?;
+                reader.read_exact(&mut buffy[0..3])?;
                 buffy[3] = 0;
                 let mut rdr = std::io::Cursor::new(buffy);
                 rdr.read_u32::<LittleEndian>().map(|s| s as usize)
@@ -157,7 +172,7 @@ struct Interests {
 impl Interests {
     fn new<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let dimensions = Dimensions::new(reader)?;
-        let tiles_offsets = TilesOffsets::new(reader)?;
+        let tiles_offsets = TilesOffsets::new(reader, &dimensions)?;
         let end = tiles_offsets.end_offset();
         let mut binary_interests = vec![0u8; end];
         reader.read_exact(&mut binary_interests)?;
@@ -209,7 +224,7 @@ impl Map {
         let blue = reader.read_u8()?;
         let color_array = [red, green, blue];
         let dimensions = Dimensions::new(reader)?;
-        let tiles_offsets = TilesOffsets::new(reader)?;
+        let tiles_offsets = TilesOffsets::new(reader, &dimensions)?;
         let end = tiles_offsets.end_offset();
         let mut binary = vec![0; end];
         reader.read_exact(&mut binary)?;
