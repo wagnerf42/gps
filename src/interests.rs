@@ -12,7 +12,7 @@ pub fn save_tiled_interests<W: Write>(
     if interests.is_empty() {
         return Ok(());
     }
-    let mut tiled_interests: HashMap<u16, Vec<(usize, Node)>> = HashMap::new();
+    let mut tiled_interests: HashMap<usize, Vec<(usize, Node)>> = HashMap::new();
     let (xmin, xmax) = interests
         .iter()
         .map(|(_, node)| node.x)
@@ -39,7 +39,7 @@ pub fn save_tiled_interests<W: Write>(
             interest_node
                 .tiles(side)
                 .map(|(tx, ty)| ((tx - first_tile_x) as usize, (ty - first_tile_y) as usize))
-                .map(|(tx, ty)| (tx + ty * grid_width) as u16)
+                .map(|(tx, ty)| tx + ty * grid_width)
                 .next() // first tile is enough for interests
                 .unwrap(),
             (*interest_type, *interest_node),
@@ -47,7 +47,7 @@ pub fn save_tiled_interests<W: Write>(
     }) {
         tiled_interests.entry(tile).or_default().push(interest);
     }
-    let mut non_empty_tiles = tiled_interests.keys().copied().collect::<Vec<_>>();
+    let mut non_empty_tiles = tiled_interests.keys().copied().collect::<Vec<usize>>();
     non_empty_tiles.sort_unstable();
 
     writer.write_all(&[BlockType::Interests as u8])?;
@@ -64,9 +64,16 @@ pub fn save_tiled_interests<W: Write>(
     writer.write_all(&[16])?;
     writer.write_all(&[3])?; // size taken by each interest
     writer.write_all(&(non_empty_tiles.len() as u16).to_le_bytes())?;
+
+    let bytes_per_tile_index = if grid_width * grid_height > std::u16::MAX as usize {
+        3
+    } else {
+        2
+    };
     for tile in &non_empty_tiles {
-        writer.write_all(&tile.to_le_bytes())?;
+        writer.write_all(&tile.to_le_bytes()[0..bytes_per_tile_index])?;
     }
+
     for end in non_empty_tiles.iter().scan(0u16, |previous_end, tile_id| {
         let tile_size = tiled_interests[tile_id].len() as u16;
         *previous_end += tile_size;
