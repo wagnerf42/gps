@@ -255,7 +255,7 @@ pub fn cut_ways_into_edges(
     for street_ways in streets.values_mut() {
         let new_street_ways = street_ways
             .iter()
-            .flat_map(|way_id| ids_changes[&way_id].iter())
+            .flat_map(|way_id| ids_changes[way_id].iter())
             .copied()
             .collect::<Vec<_>>();
         *street_ways = new_street_ways;

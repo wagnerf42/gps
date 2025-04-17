@@ -130,6 +130,7 @@ impl Map {
         let mut binary_ways = Vec::new();
         let mut tiles_sizes_prefix = Vec::new();
         let mut ids_changes = HashMap::new();
+        let mut local_ids_changes: HashMap<CWayId, CWayId> = HashMap::new();
         let (xmin, xmax) = tiles
             .keys()
             .map(|(x, _)| x)
@@ -148,7 +149,7 @@ impl Map {
         for y in ymin..=ymax {
             for x in xmin..=xmax {
                 if let Some(tile_ways) = tiles.get(&(x, y)) {
-                    let ways = compress_tile(
+                    let mut ways = compress_tile(
                         nodes,
                         ways,
                         x,
@@ -158,6 +159,7 @@ impl Map {
                         &mut ids_changes,
                         tile_id,
                     );
+                    deduplicate_ways(&mut ways, tile_id, &mut local_ids_changes);
                     binary_ways.extend(ways.iter().flatten().flatten().copied());
                 }
                 tiles_sizes_prefix.push(binary_ways.len());
@@ -172,7 +174,13 @@ impl Map {
                     name,
                     street
                         .iter()
-                        .map(|old_id| ids_changes[old_id])
+                        .filter_map(|old_id| ids_changes.get(old_id).copied())
+                        .map(|old_local_id| {
+                            local_ids_changes
+                                .get(&old_local_id)
+                                .copied()
+                                .unwrap_or(old_local_id)
+                        })
                         .collect::<Vec<_>>(),
                 )
             })
@@ -495,6 +503,80 @@ impl Map {
     }
 }
 
+fn deduplicate_ways(
+    ways: &mut Vec<[[u8; 2]; 2]>,
+    tile_id: usize,
+    local_ids_changes: &mut HashMap<CWayId, CWayId>,
+) {
+    use rational::Rational;
+    let mut lines: HashMap<_, [Vec<_>; 2]> = HashMap::new();
+    for (local_way_num, [start, end]) in ways.iter().copied().enumerate() {
+        let [x1, y1] = start;
+        let [x2, y2] = end;
+        // assert!(x1 != x2 || y1 != y2);
+        let key = if x1 == x2 {
+            (Rational::new(256, 1), Rational::new(x1, 1))
+        } else {
+            let slope = Rational::new(y2 - y1, x2 - x1);
+            let height = y1 - slope * x1;
+            (slope, height)
+        };
+        let points = lines.entry(key).or_default();
+        if start < end {
+            points[0].push((start, local_way_num));
+            points[1].push((end, local_way_num));
+        } else {
+            points[1].push((start, local_way_num));
+            points[0].push((end, local_way_num));
+        }
+    }
+    let mut remaining_ways = Vec::new();
+    for [starts, ends] in lines.into_values() {
+        let mut events: HashMap<_, [Vec<usize>; 2]> = HashMap::new();
+        for (start, way_num) in starts {
+            events.entry(start).or_default()[0].push(way_num);
+        }
+        for (end, way_num) in ends {
+            events.entry(end).or_default()[1].push(way_num);
+        }
+        let mut current_start = None;
+        let mut inner_ways = Vec::new();
+        let mut current_ways = HashSet::new();
+        for (point, [starts, ends]) in events.into_iter().sorted() {
+            let current_count = current_ways.len();
+            for end in ends {
+                current_ways.remove(&end);
+            }
+            for start in &starts {
+                current_ways.insert(*start);
+            }
+            let new_count = current_ways.len();
+            if current_count == 0 && new_count > 0 {
+                // new way start
+                current_start = Some(point);
+            } else if current_count > 0 && new_count == 0 {
+                // new way end
+                let new_way_id = CWayId {
+                    tile_number: tile_id as u16,
+                    local_way_id: remaining_ways.len() as u8,
+                };
+                remaining_ways.push([current_start.unwrap(), point]);
+                for way_num in inner_ways.drain(..) {
+                    let old_way_id = CWayId {
+                        tile_number: tile_id as u16,
+                        local_way_id: way_num as u8,
+                    };
+                    local_ids_changes.insert(old_way_id, new_way_id);
+                }
+            }
+            for start in starts {
+                inner_ways.push(start);
+            }
+        }
+    }
+    std::mem::swap(ways, &mut remaining_ways);
+}
+
 fn compress_tile(
     nodes: &[Node],
     ways: &[[NodeId; 2]],
@@ -573,7 +655,9 @@ fn compress_tile(
         // if tile_id == 1754 {
         //     eprintln!("way: {new_way:?}");
         // }
-        compressed_ways.push([new_way[0], new_way[1]]);
+        if new_way[0][0] != new_way[1][0] || new_way[0][1] != new_way[1][1] {
+            compressed_ways.push([new_way[0], new_way[1]]);
+        }
     }
 
     compressed_ways
