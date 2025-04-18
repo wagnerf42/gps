@@ -183,23 +183,9 @@ impl Gps {
 
         let rp = simplify_path_around_waypoints(&p, &waypoints);
 
-        let (mut xmin, mut xmax) = rp.iter().map(|p| p.x).minmax().into_option().unwrap();
-        let (mut ymin, mut ymax) = rp.iter().map(|p| p.y).minmax().into_option().unwrap();
-        let map_polygon = if (xmax - xmin) * (ymax - ymin) < 0.2 * 0.2 {
-            // osm should be able to answer this full rectangle
-            xmin -= side * 2.;
-            ymin -= side * 2.;
-            xmax += side * 2.;
-            ymax += side * 2.;
-            vec![
-                Node::new(xmin, ymin),
-                Node::new(xmin, ymax),
-                Node::new(xmax, ymax),
-                Node::new(xmax, ymin),
-            ]
-        } else {
-            inflate_polyline(&rp, side * 2.) // two tiles on each side
-        };
+        crate::log("inflating polyline");
+        let map_polygon = inflate_polyline(&rp, side * 2.); // two tiles on each side
+        crate::log("computed polygon");
         Gps {
             ski: false,
             waypoints: Some(waypoints),
@@ -391,21 +377,83 @@ impl Gps {
 }
 
 fn inflate_polyline(rp: &[Node], side: f64) -> Vec<Node> {
-    use geo_types::MultiPoint;
-    let displaced_points: MultiPoint = rp
-        .iter()
-        .flat_map(|p| {
-            (0..8).map(move |a| ((a as f64).cos() * side + p.x, (a as f64).sin() * side + p.y))
+    fn segment_tiles<'a>(
+        p1: &'a Node,
+        p2: &'a Node,
+        side: f64,
+    ) -> impl Iterator<Item = (i32, i32)> + 'a {
+        use crate::grid_coordinates_between;
+        let mut p1 = *p1;
+        let mut p2 = *p2;
+        let invert_x_y = if (p1.y - p2.y).abs() > (p1.x - p2.x).abs() {
+            std::mem::swap(&mut p1.x, &mut p1.y);
+            std::mem::swap(&mut p2.x, &mut p2.y);
+            true
+        } else {
+            false
+        };
+        if p1.x > p2.x {
+            std::mem::swap(&mut p1, &mut p2);
+        }
+        let xs = std::iter::once(p1.x)
+            .chain(grid_coordinates_between(p1.x, p2.x, side))
+            .chain(std::iter::once(p2.x));
+        xs.map(move |x| {
+            let alpha = (x - p1.x) / (p2.x - p1.x);
+            let y = alpha.mul_add(p2.y - p1.y, p1.y);
+            ((x / side).floor() as i32, (y / side).floor() as i32)
         })
-        .collect::<Vec<(f64, f64)>>()
-        .into();
-
-    use geo::KNearestConcaveHull;
-    let poly = displaced_points.0.k_nearest_concave_hull(10);
-    poly.exterior()
-        .points()
-        .map(|p| Node::new(p.x(), p.y()))
-        .collect()
+        .flat_map(|(x, y)| {
+            itertools::iproduct!(-1i32..2i32, -1i32..2i32).map(move |(i, j)| (x + i, y + j))
+        })
+        .map(move |(x, y)| if invert_x_y { (y, x) } else { (x, y) })
+    }
+    //find all tiles containing path
+    let mut tiles = HashSet::new();
+    for (p1, p2) in rp.iter().tuple_windows() {
+        tiles.extend(segment_tiles(p1, p2, side));
+    }
+    // find border around these tiles
+    let mut segments = HashMap::new();
+    for (tile_x, tile_y) in tiles.iter().copied() {
+        if !tiles.contains(&(tile_x - 1, tile_y)) {
+            segments.insert((tile_x, tile_y), (tile_x, tile_y + 1));
+        }
+        if !tiles.contains(&(tile_x + 1, tile_y)) {
+            segments.insert((tile_x + 1, tile_y + 1), (tile_x + 1, tile_y));
+        }
+        if !tiles.contains(&(tile_x, tile_y + 1)) {
+            segments.insert((tile_x, tile_y + 1), (tile_x + 1, tile_y + 1));
+        }
+        if !tiles.contains(&(tile_x, tile_y - 1)) {
+            segments.insert((tile_x + 1, tile_y), (tile_x, tile_y));
+        }
+    }
+    // now rebuild the polygon
+    let mut polygon = Vec::new();
+    let start_point = segments.iter().next().unwrap().0;
+    let mut current_tx = start_point.0;
+    let mut current_ty = start_point.1;
+    loop {
+        polygon.push([current_tx, current_ty]);
+        let next_point = segments.get(&(current_tx, current_ty)).unwrap();
+        if next_point == start_point {
+            // now simplify a bit the polygon and build nodes
+            return polygon
+                .iter()
+                .tuple_windows()
+                .filter_map(|([x1, y1], [x2, y2], [x3, y3])| {
+                    if (x1 == x2 && x2 == x3) || (y1 == y2 && y2 == y3) {
+                        None
+                    } else {
+                        Some(Node::new(*x2 as f64 * side, *y2 as f64 * side))
+                    }
+                })
+                .collect();
+        }
+        current_tx = next_point.0;
+        current_ty = next_point.1;
+    }
 }
 
 pub fn simplify_path_around_waypoints(p: &Vec<Node>, waypoints: &HashSet<Node>) -> Vec<Node> {
