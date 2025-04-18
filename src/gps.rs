@@ -431,7 +431,8 @@ fn inflate_polyline(rp: &[Node], side: f64) -> Vec<Node> {
     }
     // now rebuild the polygon
     let mut polygon = Vec::new();
-    let start_point = segments.iter().next().unwrap().0;
+    // start with leftmost point to avoid moving on possible inner holes
+    let start_point = segments.keys().min_by_key(|p| p.0).unwrap();
     let mut current_tx = start_point.0;
     let mut current_ty = start_point.1;
     loop {
