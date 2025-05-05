@@ -14,6 +14,20 @@ impl std::hash::Hash for Node {
     }
 }
 
+impl kd_tree::KdPoint for Node {
+    type Scalar = f64;
+
+    type Dim = typenum::U2;
+
+    fn at(&self, i: usize) -> Self::Scalar {
+        if i == 0 {
+            self.x
+        } else {
+            self.y
+        }
+    }
+}
+
 impl Node {
     pub fn new(x: f64, y: f64) -> Self {
         Node { x, y }

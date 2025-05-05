@@ -39,7 +39,7 @@ pub fn load_maps_and_interests<P: AsRef<Path>>(
     path: P,
     key_values: &[(String, String)],
     ski: bool,
-) -> std::io::Result<(Vec<Map>, Vec<(usize, Node)>)> {
+) -> std::io::Result<(Vec<Map>, Vec<(usize, Node)>, Vec<[Node; 2]>)> {
     let mut answer = Vec::new();
     std::io::BufReader::new(std::fs::File::open(path.as_ref())?).read_to_end(&mut answer)?;
     let string = std::str::from_utf8(&answer).unwrap();
@@ -58,7 +58,7 @@ pub fn maps_and_interests_from_string(
     key_values: &[(String, String)],
     ski: bool,
     side: f64,
-) -> (Vec<Map>, Vec<(usize, Node)>) {
+) -> (Vec<Map>, Vec<(usize, Node)>, Vec<[Node; 2]>) {
     crate::log("map: parsing xml");
     let (nodes, mut ways, mut streets, pistes, interests) = crate::parse_osm_xml(s, key_values);
     if ski {
@@ -71,6 +71,7 @@ pub fn maps_and_interests_from_string(
             [255, 0, 255],
         ];
         let mut maps = Vec::new();
+        let mut real_ways = Vec::new();
         for (color, pistes) in colors.into_iter().zip(&pistes) {
             let nodes = nodes.clone();
             let mut ways = ways
@@ -84,6 +85,12 @@ pub fn maps_and_interests_from_string(
             let mut streets = HashMap::new();
             let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
             let mut ways = crate::sanitize_ways(ways, &mut streets);
+
+            real_ways.extend(ways.iter().flat_map(|way| {
+                way.iter()
+                    .tuple_windows()
+                    .map(|(i1, i2)| [renamed_nodes[*i1 as usize], renamed_nodes[*i2 as usize]])
+            }));
             crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
             crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
             let ways = crate::cut_ways_into_edges(ways, &mut streets);
@@ -94,11 +101,19 @@ pub fn maps_and_interests_from_string(
         if maps.is_empty() {
             crate::log("map: no ski pistes found");
         }
-        (maps, interests)
+        (maps, interests, real_ways)
     } else {
         crate::log("map: building");
         let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
         let mut ways = crate::sanitize_ways(ways, &mut streets);
+        let real_ways: Vec<[Node; 2]> = ways
+            .iter()
+            .flat_map(|way| {
+                way.iter()
+                    .tuple_windows()
+                    .map(|(i1, i2)| [renamed_nodes[*i1 as usize], renamed_nodes[*i2 as usize]])
+            })
+            .collect();
         crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
         crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
         let ways = crate::cut_ways_into_edges(ways, &mut streets);
@@ -114,6 +129,7 @@ pub fn maps_and_interests_from_string(
                 side,
             )],
             interests,
+            real_ways,
         )
     }
 }
@@ -390,12 +406,20 @@ impl Map {
     }
 
     pub(crate) fn decode_node(&self, node_id: CNodeId) -> Node {
-        let tile_x = node_id.tile_number as usize % self.grid_size.0;
-        let tile_y = node_id.tile_number as usize / self.grid_size.0;
+        let mut tile_x = node_id.tile_number as usize % self.grid_size.0;
+        let mut tile_y = node_id.tile_number as usize / self.grid_size.0;
         let binary_tile = self.tile_binary(node_id.tile_number);
-        let cx = binary_tile[2 * node_id.local_node_id as usize];
-        let cy = binary_tile[2 * node_id.local_node_id as usize + 1];
-
+        let mut cx = binary_tile[2 * node_id.local_node_id as usize];
+        let mut cy = binary_tile[2 * node_id.local_node_id as usize + 1];
+        // renormalize so that same point in different tiles get exact same coordinates
+        if cx == 255 {
+            tile_x += 1;
+            cx = 0;
+        }
+        if cy == 255 {
+            tile_y += 1;
+            cy = 0;
+        }
         let x = self.start_coordinates.0 + tile_x as f64 * self.side + cx as f64 / 255. * self.side;
         let y = self.start_coordinates.1 + tile_y as f64 * self.side + cy as f64 / 255. * self.side;
         Node::new(x, y)

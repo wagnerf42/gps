@@ -80,7 +80,7 @@ pub async fn request_maps_from<P: AsRef<std::path::Path>>(
     key_values: &[(String, String)],
     map_name: Option<P>,
     ski: bool,
-) -> Result<(Vec<Map>, Vec<(usize, Node)>), Box<dyn std::error::Error>> {
+) -> Result<(Vec<Map>, Vec<(usize, Node)>, Vec<[Node; 2]>), Box<dyn std::error::Error>> {
     crate::log("requesting map");
     let osm_answer = request(polygon, ski).await?;
     crate::log("got the request answer");

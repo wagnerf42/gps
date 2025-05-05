@@ -1,3 +1,4 @@
+use core::f64;
 use itertools::Itertools;
 use std::f64::consts::PI;
 use std::{
@@ -9,6 +10,21 @@ use crate::{
     grid_coordinates_between, save_svg, CNodeId, CWayId, Map, Node, Svg, SvgW,
     TILE_BORDER_THICKNESS,
 };
+
+struct Segment(Node, Node);
+impl kd_tree::KdPoint for Segment {
+    type Scalar = f64;
+
+    type Dim = typenum::U2;
+
+    fn at(&self, i: usize) -> Self::Scalar {
+        if i == 0 {
+            self.0.x
+        } else {
+            self.0.y
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 struct GNode {
@@ -153,24 +169,23 @@ impl Map {
 
     // return if we can discard this crossroad safely.
     // it is the case if by going forward you take the right path
-    pub fn obvious_crossroad(
+    fn obvious_crossroad(
         &self,
         possible_waypoint_node: &Node,
         previous_node: &Node,
         next_node: &Node,
+        real_ways: &kd_tree::KdTree<Segment>,
     ) -> bool {
         let ideal_leaving_angle = previous_node.angle_to(possible_waypoint_node);
         let real_leaving_angle = possible_waypoint_node.angle_to(next_node);
         let allowed_angle_diff = angles_sub(ideal_leaving_angle, real_leaving_angle);
 
         let mut possible_destinations = HashSet::new();
-        for n in self
-            .node_tiles(possible_waypoint_node)
-            .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
-            .flatten()
-            .filter(|n| n.distance_to(possible_waypoint_node) <= 0.0001)
-        {
-            possible_destinations.extend(self.neighbours(&n).map(|n| n[1].node));
+        for s in real_ways.within_radius(
+            &Segment(*possible_waypoint_node, *possible_waypoint_node),
+            0.0001,
+        ) {
+            possible_destinations.insert(s.1);
         }
 
         possible_destinations.len() <= 2 || {
@@ -190,59 +205,103 @@ impl Map {
         }
     }
 
-    pub fn detect_crossroads(&self, path: &mut Vec<Node>, waypoints: &mut HashSet<Node>) {
-        eprintln!("detecting crossroads");
-        // let rp = crate::gps::simplify_path_around_waypoints(&path, &waypoints);
+    pub fn detect_crossroads(
+        &self,
+        path: &mut Vec<Node>,
+        waypoints: &mut HashSet<Node>,
+        real_ways: Vec<[Node; 2]>,
+    ) {
+        crate::log("detecting crossroads");
+        // let mut xmin = f64::INFINITY;
+        // let mut ymin = f64::INFINITY;
+        // let mut xmax = f64::NEG_INFINITY;
+        // let mut ymax = f64::NEG_INFINITY;
+        // for p in &*path {
+        //     xmin = p.x.min(xmin);
+        //     ymin = (-p.y).min(ymin);
+        //     xmax = p.x.max(xmax);
+        //     ymax = (-p.y).max(ymax);
+        // }
+        // let mut f = std::fs::File::create("test.svg").unwrap();
+        // writeln!(
+        //     &mut f,
+        //     "<svg width='1680' height='1050' viewBox='{xmin} {ymin} {} {}'>",
+        //     xmax - xmin,
+        //     ymax - ymin
+        // )
+        // .unwrap();
 
-        let crossroads = self
-            .ways()
-            .flatten()
-            .unique()
-            .filter(|n| {
-                self.node_tiles(n)
-                    .flat_map(|(tx, ty)| self.tile_edges(tx, ty))
-                    .filter_map(|[n1, n2]| {
-                        if n1.node == *n {
-                            Some(n2.node)
-                        } else if n2.node == *n {
-                            Some(n1.node)
-                        } else {
-                            None
-                        }
-                    })
-                    .unique()
-                    .count()
-                    > 2
-            })
-            .collect::<HashSet<_>>();
+        let mut counts: HashMap<Node, u16> = HashMap::new();
+        for [n1, n2] in &real_ways {
+            *counts.entry(*n1).or_default() += 1;
+            *counts.entry(*n2).or_default() += 1;
+        }
+        let crossroads: Vec<Node> = counts
+            .into_iter()
+            .filter_map(|(n, c)| (c > 2).then_some(n))
+            .collect();
+        let crossroads = kd_tree::KdTree::build_by_ordered_float(crossroads);
 
+        // for (p1, p2) in path.iter().tuple_windows() {
+        //     writeln!(
+        //         &mut f,
+        //         "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='black' stroke-width='0.5%'/>",
+        //         p1.x, -p1.y, p2.x, -p2.y
+        //     )
+        //     .unwrap();
+        // }
+        // for c in crossroads.iter() {
+        //     writeln!(
+        //         &mut f,
+        //         "<circle cx='{}' cy='{}' r='0.5%' fill='red'/>",
+        //         c.x, -c.y
+        //     )
+        //     .unwrap();
+        // }
+        // (0..(self.grid_size.0))
+        //     .flat_map(|x| (0..(self.grid_size.1)).map(move |y| (x, y)))
+        //     .flat_map(|(x, y)| self.tile_edges(x, y))
+        //     .for_each(|[n1, n2]| {
+        //         writeln!(
+        //             &mut f,
+        //             "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke-width='0.2%' stroke='black'/>",
+        //             n1.x, -n1.y, n2.x, -n2.y
+        //         )
+        //         .unwrap()
+        //     });
         let mut current_distance = 0.;
         let mut previous_waypoint_distance = None;
+        let real_ways = kd_tree::KdTree::build_by_ordered_float(
+            real_ways
+                .iter()
+                .map(|[a, b]| Segment(*a, *b))
+                .chain(real_ways.iter().map(|[a, b]| Segment(*b, *a)))
+                .collect::<Vec<_>>(),
+        );
         for (previous_node, node, next_node) in path.iter().tuple_windows() {
             current_distance += previous_node.distance_to(node);
-            if self
-                .node_tiles(node)
-                .flat_map(|(tile_x, tile_y)| self.tile_edges(tile_x, tile_y))
-                .flatten()
-                .filter(|n| n.distance_to(node) <= 0.0001)
-                .any(|n| crossroads.contains(&n))
+
+            if !crossroads.within_radius(node, 0.00015).is_empty()
+                && !(self.obvious_crossroad(node, previous_node, next_node, &real_ways)
+                    && self.obvious_crossroad(node, next_node, previous_node, &real_ways))
+                && previous_waypoint_distance
+                    .map(|pd| current_distance - pd > 0.0003)
+                    .unwrap_or(true)
             {
-                if !(self.obvious_crossroad(node, previous_node, next_node)
-                    && self.obvious_crossroad(node, next_node, previous_node))
-                {
-                    if previous_waypoint_distance
-                        .map(|pd| current_distance - pd > 0.0003)
-                        .unwrap_or(true)
-                    {
-                        waypoints.insert(*node);
-                        previous_waypoint_distance = Some(current_distance);
-                    }
-                }
+                waypoints.insert(*node);
+                previous_waypoint_distance = Some(current_distance);
             }
         }
+        // for c in waypoints.iter() {
+        //     writeln!(
+        //         &mut f,
+        //         "<circle cx='{}' cy='{}' fill='green' r='0.3%'/>",
+        //         c.x, -c.y
+        //     );
+        // }
+        // writeln!(&mut f, "</svg>").unwrap();
         let final_path = crate::gps::simplify_path_around_waypoints(path, waypoints);
         *path = final_path;
-        return;
 
         // let tiled_segments = self.hash_segments_on_tiles(&rp);
         // for possible_waypoint in crossroads {

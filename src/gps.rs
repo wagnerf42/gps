@@ -197,14 +197,14 @@ impl Gps {
             autodetect_waypoints,
         }
     }
-    pub fn detect_crossroads(&mut self) {
+    pub fn detect_crossroads(&mut self, real_ways: Vec<[Node; 2]>) {
         let (path, maps, waypoints) = (&mut self.path, &self.maps, &mut self.waypoints);
         if let Some(path) = path {
             if maps.len() == 1 {
                 if let Some(waypoints) = waypoints {
                     if waypoints.len() <= 2 {
                         // if we have two waypoints it's start and end
-                        maps[0].detect_crossroads(path, waypoints);
+                        maps[0].detect_crossroads(path, waypoints, real_ways);
                     }
                 }
             } else {
@@ -229,7 +229,7 @@ impl Gps {
         key_values: &[(String, String)],
         map_name: Option<P>,
     ) {
-        let (maps, interests) =
+        let (maps, interests, real_ways) =
             crate::request_maps_from(&self.map_polygon, key_values, map_name, self.ski)
                 .await
                 .expect("failed requesting map");
@@ -237,7 +237,7 @@ impl Gps {
         self.interests = interests;
         self.clip_maps();
         if self.autodetect_waypoints {
-            self.detect_crossroads();
+            self.detect_crossroads(real_ways);
         }
         self.add_waypoints_to_interests();
     }
@@ -252,15 +252,17 @@ impl Gps {
         map_name: P,
         key_values: &[(String, String)],
     ) -> std::io::Result<()> {
-        crate::load_maps_and_interests(&map_name, key_values, self.ski).map(|(maps, interests)| {
-            self.maps = maps;
-            self.interests = interests;
-            self.clip_maps();
-            if self.autodetect_waypoints {
-                self.detect_crossroads();
-            }
-            self.add_waypoints_to_interests();
-        })
+        crate::load_maps_and_interests(&map_name, key_values, self.ski).map(
+            |(maps, interests, real_ways)| {
+                self.maps = maps;
+                self.interests = interests;
+                self.clip_maps();
+                if self.autodetect_waypoints {
+                    self.detect_crossroads(real_ways);
+                }
+                self.add_waypoints_to_interests();
+            },
+        )
     }
     pub fn save_svg<P: AsRef<std::path::Path>>(&self, svg_path: P) -> std::io::Result<()> {
         let interests_nodes = UniColorNodes(
@@ -440,16 +442,18 @@ fn inflate_polyline(rp: &[Node], side: f64) -> Vec<Node> {
         let next_point = segments.get(&(current_tx, current_ty)).unwrap();
         if next_point == start_point {
             // now simplify a bit the polygon and build nodes
-            return polygon
-                .iter()
-                .tuple_windows()
-                .filter_map(|([x1, y1], [x2, y2], [x3, y3])| {
-                    if (x1 == x2 && x2 == x3) || (y1 == y2 && y2 == y3) {
-                        None
-                    } else {
-                        Some(Node::new(*x2 as f64 * side, *y2 as f64 * side))
-                    }
-                })
+            return std::iter::once(polygon[0])
+                .chain(polygon.iter().tuple_windows().filter_map(
+                    |([x1, y1], [x2, y2], [x3, y3])| {
+                        if (x1 == x2 && x2 == x3) || (y1 == y2 && y2 == y3) {
+                            None
+                        } else {
+                            Some([*x2, *y2])
+                        }
+                    },
+                ))
+                .chain(polygon.last().copied())
+                .map(|[x, y]| Node::new(x as f64 * side, y as f64 * side))
                 .collect();
         }
         current_tx = next_point.0;
