@@ -14,7 +14,7 @@ pub const DEFAULT_SIDE: f64 = 1. / 750.; // excellent value
                                          // Note that the best value for size is 1/500
                                          // But we go for 1/750 because this enables is to use less pixels in the watch's display
 
-use crate::{CNodeId, CWayId, Node, NodeId, TileKey, WayId};
+use crate::{osm, CNodeId, CWayId, Node, NodeId, TileKey, WayId};
 
 pub enum BlockType {
     Tiles,
@@ -53,6 +53,44 @@ pub fn load_maps_and_interests<P: AsRef<Path>>(
     ))
 }
 
+// convert osm nodes and ways to our inner Map format
+pub fn osm_to_map(
+    nodes: HashMap<NodeId, Node>,
+    mut ways: HashMap<WayId, Vec<NodeId>>,
+    mut streets: HashMap<String, Vec<WayId>>,
+    interests: Vec<(usize, Node)>,
+    side: f64,
+) -> (Vec<Map>, Vec<(usize, Node)>, Vec<[Node; 2]>) {
+    crate::log("map: building");
+    let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
+    let mut ways = crate::sanitize_ways(ways, &mut streets);
+    let real_ways: Vec<[Node; 2]> = ways
+        .iter()
+        .flat_map(|way| {
+            way.iter()
+                .tuple_windows()
+                .map(|(i1, i2)| [renamed_nodes[*i1 as usize], renamed_nodes[*i2 as usize]])
+        })
+        .collect();
+    crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
+    crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
+    let ways = crate::cut_ways_into_edges(ways, &mut streets);
+    let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, side);
+    crate::log("map: done");
+    (
+        vec![Map::new(
+            [0, 0, 0],
+            &renamed_nodes,
+            &ways,
+            streets,
+            &tiles,
+            side,
+        )],
+        interests,
+        real_ways,
+    )
+}
+
 pub fn maps_and_interests_from_string(
     s: &str,
     key_values: &[(String, String)],
@@ -60,7 +98,7 @@ pub fn maps_and_interests_from_string(
     side: f64,
 ) -> (Vec<Map>, Vec<(usize, Node)>, Vec<[Node; 2]>) {
     crate::log("map: parsing xml");
-    let (nodes, mut ways, mut streets, pistes, interests) = crate::parse_osm_xml(s, key_values);
+    let (nodes, ways, streets, pistes, interests) = crate::parse_osm_xml(s, key_values);
     if ski {
         // red is 254 because at 255 gipy would display it thick
         let colors = [
@@ -103,34 +141,7 @@ pub fn maps_and_interests_from_string(
         }
         (maps, interests, real_ways)
     } else {
-        crate::log("map: building");
-        let mut renamed_nodes = crate::rename_nodes(nodes, &mut ways);
-        let mut ways = crate::sanitize_ways(ways, &mut streets);
-        let real_ways: Vec<[Node; 2]> = ways
-            .iter()
-            .flat_map(|way| {
-                way.iter()
-                    .tuple_windows()
-                    .map(|(i1, i2)| [renamed_nodes[*i1 as usize], renamed_nodes[*i2 as usize]])
-            })
-            .collect();
-        crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
-        crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
-        let ways = crate::cut_ways_into_edges(ways, &mut streets);
-        let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, side);
-        crate::log("map: done");
-        (
-            vec![Map::new(
-                [0, 0, 0],
-                &renamed_nodes,
-                &ways,
-                streets,
-                &tiles,
-                side,
-            )],
-            interests,
-            real_ways,
-        )
+        osm_to_map(nodes, ways, streets, interests, side)
     }
 }
 

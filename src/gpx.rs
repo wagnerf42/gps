@@ -81,6 +81,26 @@ pub async fn request_maps_from<P: AsRef<std::path::Path>>(
     map_name: Option<P>,
     ski: bool,
 ) -> Result<(Vec<Map>, Vec<(usize, Node)>, Vec<[Node; 2]>), Box<dyn std::error::Error>> {
+    let side = if ski {
+        1. / 150.
+    } else {
+        crate::map::DEFAULT_SIDE
+    };
+
+    #[cfg(feature = "osmio")]
+    {
+        if let Some(pbf_name) = std::env::args().nth(5) {
+            if ski {
+                todo!()
+            }
+            eprintln!("reading osm data from {}", pbf_name);
+            return crate::osm::parse_osm_pbf(pbf_name, key_values, polygon).map(
+                |(nodes, ways, interests)| {
+                    crate::map::osm_to_map(nodes, ways, Default::default(), interests, side)
+                },
+            );
+        }
+    }
     crate::log("requesting map");
     let osm_answer = request(polygon, ski).await?;
     crate::log("got the request answer");
@@ -90,11 +110,6 @@ pub async fn request_maps_from<P: AsRef<std::path::Path>>(
         writer.write_all(osm_answer.as_bytes())?;
         eprintln!("we saved the map");
     }
-    let side = if ski {
-        1. / 150.
-    } else {
-        crate::map::DEFAULT_SIDE
-    };
     Ok(maps_and_interests_from_string(
         &osm_answer,
         key_values,

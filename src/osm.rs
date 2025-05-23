@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 use xml::{reader::XmlEvent, EventReader};
 
 use crate::{Node, NodeId, WayId};
@@ -206,4 +209,64 @@ pub fn parse_osm_xml(
         }
     }
     (nodes, ways, streets, pistes, interests)
+}
+
+#[cfg(feature = "osmio")]
+pub fn parse_osm_pbf<P: AsRef<Path>>(
+    path: P,
+    key_values: &[(String, String)],
+    limits: &[Node],
+) -> Result<
+    (
+        HashMap<NodeId, Node>,
+        HashMap<WayId, Vec<NodeId>>,
+        Vec<(usize, Node)>, // interests (type + node)
+    ),
+    Box<(dyn std::error::Error + 'static)>,
+> {
+    use osmio::{arcpbf::PBFReader, OSMObjBase, OSMReader};
+    use osmio::{Node as NodeOsmio, Way};
+    let (xmin, xmax) = limits.iter().map(|n| n.x).minmax().into_option().unwrap();
+    let (ymin, ymax) = limits.iter().map(|n| n.y).minmax().into_option().unwrap();
+    let mut r = PBFReader::from_filename(path)?;
+    let mut nodes = HashMap::new();
+    let mut ways: HashMap<WayId, Vec<NodeId>> = HashMap::new();
+    let mut interests = Vec::new();
+    for obj in r.objects() {
+        match &obj {
+            osmio::obj_types::ArcOSMObj::Node(arc_node) => {
+                if let Some((y, x)) = arc_node.lat_lon_f64() {
+                    if x >= xmin && x <= xmax && y >= ymin && y <= ymax {
+                        nodes.insert(arc_node.id() as NodeId, Node { x, y });
+                        for (i, (key, value)) in key_values.iter().enumerate() {
+                            if obj.tags().any(|(k, v)| k == key && v == value) {
+                                interests.push((i, Node { x, y }));
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+            osmio::obj_types::ArcOSMObj::Way(arc_way) => {
+                let nodes = arc_way.nodes();
+                if !nodes.is_empty() {
+                    ways.insert(
+                        arc_way.id() as WayId,
+                        nodes.iter().map(|&i| i as NodeId).collect(),
+                    );
+                }
+            }
+            _ => (),
+        }
+    }
+    // remove ways outside of wanted area
+    ways.retain(|_, way_nodes| {
+        way_nodes.iter().any(|node_id| {
+            nodes
+                .get(node_id as &NodeId)
+                .map(|node| xmin <= node.x && node.x <= xmax && node.y >= ymin && node.y <= ymax)
+                .unwrap_or(false)
+        })
+    });
+    Ok((nodes, ways, interests))
 }
