@@ -15,7 +15,7 @@ mod osm;
 pub use osm::{parse_osm_xml, request};
 mod simplify;
 pub use simplify::{optimal_simplification, optimal_simplification2, simplify_path};
-mod utils;
+pub mod utils;
 pub use utils::grid_coordinates_between;
 pub mod map;
 pub use map::{load_maps_and_interests, maps_and_interests_from_string, Map};

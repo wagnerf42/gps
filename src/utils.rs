@@ -1,3 +1,7 @@
+pub fn bytes_needed_for(a: usize) -> u8 {
+    ((64 - a.leading_zeros()).next_multiple_of(8) / 8) as u8
+}
+
 // loop on all coordinates c intersecting grid at min + side * alpha
 // such that start < c < end
 pub fn grid_coordinates_between(

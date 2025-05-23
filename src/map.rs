@@ -274,36 +274,28 @@ impl Map {
             .enumerate()
             .filter_map(|(i, w)| if w[0] != w[1] { Some(i) } else { None })
             .collect::<Vec<usize>>();
-        let bytes_number = if self.tiles_sizes_prefix.last().copied().unwrap_or_default() / 4
-            <= std::u16::MAX as usize
-        {
-            writer.write_all(&[16])?;
-            2
-        } else {
-            writer.write_all(&[24])?;
-            3
-        };
+        let bytes_number = crate::utils::bytes_needed_for(
+            self.tiles_sizes_prefix.last().copied().unwrap_or_default() / 4,
+        );
+        writer.write_all(&[bytes_number])?;
         writer.write_all(&[4])?; // size taken by each way
-        writer.write_all(&(non_empty_tiles.len() as u16).to_le_bytes())?;
+        writer.write_all(&(non_empty_tiles.len() as u32).to_le_bytes())?;
 
-        let bytes_per_tile_index = if self.grid_size.0 * self.grid_size.1 > std::u16::MAX as usize {
-            3
-        } else {
-            2
-        };
+        let bytes_per_tile_index =
+            crate::utils::bytes_needed_for(self.grid_size.0 * self.grid_size.1);
         for tile in &non_empty_tiles {
-            writer.write_all(&tile.to_le_bytes()[0..bytes_per_tile_index])?;
+            writer.write_all(&tile.to_le_bytes()[0..bytes_per_tile_index as usize])?;
         }
         for end in non_empty_tiles
             .iter()
-            .map(|tile_index| self.tiles_sizes_prefix[*tile_index as usize])
+            .map(|tile_index| self.tiles_sizes_prefix[*tile_index])
             // compute position in ways not in bytes
             .map(|end| {
                 assert_eq!(end % 4, 0);
                 end / 4
             })
         {
-            writer.write_all(&end.to_le_bytes()[0..bytes_number])?;
+            writer.write_all(&end.to_le_bytes()[0..bytes_number as usize])?;
         }
         Ok(())
     }

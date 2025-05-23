@@ -353,8 +353,8 @@ impl Gps {
     }
 
     pub fn write_gps<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        eprintln!("saving interests");
         let side = self.maps[0].side;
+        eprintln!("saving interests");
         save_tiled_interests(&self.interests, side, writer)?;
         if let Some(gpx_path) = &self.path {
             if let Some(waypoints) = &self.waypoints {

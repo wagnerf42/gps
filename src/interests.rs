@@ -61,31 +61,32 @@ pub fn save_tiled_interests<W: Write>(
     writer.write_all(&side.to_le_bytes())?;
 
     //TODO: factorize with save_sizes_prefix
-    writer.write_all(&[16])?;
+    let interests_number = non_empty_tiles
+        .iter()
+        .map(|tile_id| tiled_interests[tile_id].len())
+        .sum::<usize>();
+    let bytes_needed = crate::utils::bytes_needed_for(interests_number);
+    writer.write_all(&[bytes_needed])?;
     writer.write_all(&[3])?; // size taken by each interest
-    writer.write_all(&(non_empty_tiles.len() as u16).to_le_bytes())?;
+    writer.write_all(&(non_empty_tiles.len() as u32).to_le_bytes())?;
 
-    let bytes_per_tile_index = if grid_width * grid_height > std::u16::MAX as usize {
-        3
-    } else {
-        2
-    };
+    let bytes_per_tile_index = crate::utils::bytes_needed_for(grid_width * grid_height);
     for tile in &non_empty_tiles {
-        writer.write_all(&tile.to_le_bytes()[0..bytes_per_tile_index])?;
+        writer.write_all(&tile.to_le_bytes()[0..bytes_per_tile_index as usize])?;
     }
 
-    for end in non_empty_tiles.iter().scan(0u16, |previous_end, tile_id| {
-        let tile_size = tiled_interests[tile_id].len() as u16;
+    for end in non_empty_tiles.iter().scan(0u64, |previous_end, tile_id| {
+        let tile_size = tiled_interests[tile_id].len() as u64;
         *previous_end += tile_size;
         Some(*previous_end)
     }) {
-        writer.write_all(&end.to_le_bytes())?;
+        writer.write_all(&end.to_le_bytes()[0..bytes_needed as usize])?;
     }
     for tile in &non_empty_tiles {
         for (interest_type, interest_node) in &tiled_interests[tile] {
             writer.write_all(&[*interest_type as u8])?;
-            let tile_x = first_tile_x + (*tile as usize % grid_width) as isize;
-            let tile_y = first_tile_y + (*tile as usize / grid_width) as isize;
+            let tile_x = first_tile_x + (*tile % grid_width) as isize;
+            let tile_y = first_tile_y + (*tile / grid_width) as isize;
             let encoded = interest_node.encode(tile_x, tile_y, side);
             // eprintln!("{interest_node:?} encodes as {encoded:?}, tile is {tile_x}/{tile_y}");
             writer.write_all(&encoded)?;

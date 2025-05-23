@@ -112,44 +112,23 @@ struct TilesOffsets {
 }
 
 impl TilesOffsets {
-    fn new<R: Read>(reader: &mut R, dimensions: &Dimensions) -> std::io::Result<Self> {
+    fn new<R: Read>(mut reader: &mut R, dimensions: &Dimensions) -> std::io::Result<Self> {
         let type_size = reader.read_u8()?;
         let entry_size = reader.read_u8()? as usize;
-        let non_empty_tiles_number = reader.read_u16::<LittleEndian>()? as usize;
+        let non_empty_tiles_number = reader.read_u32::<LittleEndian>()? as usize;
         let bytes_per_tile_index =
-            if dimensions.grid_size.0 * dimensions.grid_size.1 <= std::u16::MAX as usize {
-                2
-            } else {
-                3
-            };
+            gps::utils::bytes_needed_for(dimensions.grid_size.0 * dimensions.grid_size.1);
 
-        let mut buffy = [0u8; 4];
         let non_empty_tiles = std::iter::repeat_with(|| -> std::io::Result<usize> {
-            if bytes_per_tile_index == 2 {
-                reader.read_u16::<LittleEndian>().map(|s| s as usize)
-            } else {
-                reader.read_exact(&mut buffy[0..3])?;
-                buffy[3] = 0;
-                let mut rdr = std::io::Cursor::new(buffy);
-                rdr.read_u32::<LittleEndian>().map(|s| s as usize)
-            }
+            read_compressed_integer(&mut reader, bytes_per_tile_index)
         })
         .take(non_empty_tiles_number)
         .collect::<Result<Vec<_>, _>>()?;
 
-        let non_empty_tiles_ends = std::iter::repeat_with(|| {
-            if type_size == 16 {
-                reader.read_u16::<LittleEndian>().map(|s| s as usize)
-            } else {
-                assert_eq!(type_size, 24);
-                reader.read_exact(&mut buffy[0..3])?;
-                buffy[3] = 0;
-                let mut rdr = std::io::Cursor::new(buffy);
-                rdr.read_u32::<LittleEndian>().map(|s| s as usize)
-            }
-        })
-        .take(non_empty_tiles_number)
-        .collect::<Result<Vec<_>, _>>()?;
+        let non_empty_tiles_ends =
+            std::iter::repeat_with(|| read_compressed_integer(&mut reader, type_size))
+                .take(non_empty_tiles_number)
+                .collect::<Result<Vec<_>, _>>()?;
         Ok(TilesOffsets {
             entry_size,
             non_empty_tiles,
@@ -304,6 +283,26 @@ impl<W: std::io::Write> Svg<W> for Map {
     }
 }
 
+pub fn read_compressed_integer<R: std::io::Read>(
+    mut reader: R,
+    bytes: u8,
+) -> std::io::Result<usize> {
+    match bytes {
+        0 => panic!(),
+        1 => reader.read_u8().map(|s| s as usize),
+        2 => reader.read_u16::<LittleEndian>().map(|s| s as usize),
+        3 => {
+            let mut buffy = [0; 4];
+            reader.read_exact(&mut buffy[0..3])?;
+            buffy[3] = 0;
+            let mut rdr = std::io::Cursor::new(buffy);
+            rdr.read_u32::<LittleEndian>().map(|s| s as usize)
+        }
+        4 => reader.read_u32::<LittleEndian>().map(|s| s as usize),
+        _ => todo!(),
+    }
+}
+
 fn main() {
     if let Some(filename) = std::env::args().nth(1) {
         let gps = Gps::new(&filename).unwrap();
@@ -315,11 +314,7 @@ fn main() {
                 }
                 eprintln!(
                     "point num {i} : {p:?} (height: {})",
-                    gps.heights
-                        .as_ref()
-                        .map(|h| h[i])
-                        .clone()
-                        .unwrap_or_default()
+                    gps.heights.as_ref().map(|h| h[i]).unwrap_or_default()
                 )
             });
         }
