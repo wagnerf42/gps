@@ -133,7 +133,7 @@ pub fn save_svg_to_writer<'a, W: Write + 'a, S: IntoIterator<Item = &'a dyn Svg<
 
     writeln!(
         writer,
-        "<svg width='{svg_width}' height='{svg_height}' viewBox='{} {} {} {}'>",
+        "<svg width='{svg_width}' height='{svg_height}' viewBox='{} {} {} {}' xmlns='http://www.w3.org/2000/svg'>",
         xmin,
         ymin,
         xmax - xmin,

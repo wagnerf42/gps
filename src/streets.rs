@@ -146,10 +146,11 @@ fn decode_ways(mut binary_ways: &[u8]) -> Vec<Vec<CWayId>> {
             let (binary_tile_number, binary) = binary_ways.split_at(2);
             binary_ways = binary;
             let tile_number = u16::from_le_bytes([binary_tile_number[0], binary_tile_number[1]]);
+            todo!("switch to 32 bits");
             let (local_way_id, binary) = binary_ways.split_first().unwrap();
             binary_ways = binary;
             way.push(CWayId {
-                tile_number,
+                tile_number: tile_number as u32,
                 local_way_id: *local_way_id,
             });
         }

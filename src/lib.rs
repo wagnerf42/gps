@@ -34,13 +34,13 @@ pub type NodeId = u64;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct CWayId {
-    pub(crate) tile_number: u16,
+    pub(crate) tile_number: u32,
     pub(crate) local_way_id: u8,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct CNodeId {
-    tile_number: u16,
+    tile_number: u32,
     local_node_id: u16,
 }
 

@@ -74,7 +74,9 @@ pub fn osm_to_map(
         .collect();
     crate::simplify_ways(&mut renamed_nodes, &mut ways, &mut streets);
     crate::cut_segments_on_tiles(&mut renamed_nodes, &mut ways, side);
+
     let ways = crate::cut_ways_into_edges(ways, &mut streets);
+
     let tiles = crate::group_ways_in_tiles(&renamed_nodes, &ways, side);
     crate::log("map: done");
     (
@@ -172,6 +174,7 @@ impl Map {
             .minmax()
             .into_option()
             .unwrap();
+
         let mut tile_id = 0;
         for y in ymin..=ymax {
             for x in xmin..=xmax {
@@ -239,7 +242,7 @@ impl Map {
             (0..self.grid_size.1)
                 .map(move |tile_y| (tile_x, tile_y))
                 .filter(|(tile_x, tile_y)| {
-                    self.tile_ways_number((tile_x + tile_y * self.grid_size.0) as u16) > 0
+                    self.tile_ways_number((tile_x + tile_y * self.grid_size.0) as u32) > 0
                 })
         })
     }
@@ -337,7 +340,7 @@ impl Map {
 
     pub fn ways(&self) -> impl Iterator<Item = [Node; 2]> + '_ {
         (0..self.tiles_sizes_prefix.len())
-            .flat_map(|tile_number| self.tile_ways(tile_number as u16).map(|(_, n)| n))
+            .flat_map(|tile_number| self.tile_ways(tile_number as u32).map(|(_, n)| n))
     }
 
     pub fn decompress(&self) -> (Vec<Node>, Vec<Vec<NodeId>>) {
@@ -377,13 +380,13 @@ impl Map {
             self.binary_ways.len(),
             self.tiles_sizes_prefix.len(),
             (0..self.tiles_sizes_prefix.len())
-                .map(|tile_number| self.tile_ways(tile_number as u16).count())
+                .map(|tile_number| self.tile_ways(tile_number as u32).count())
                 .max()
                 .unwrap(),
         )
     }
 
-    pub fn tile_binary(&self, tile_number: u16) -> &[u8] {
+    pub fn tile_binary(&self, tile_number: u32) -> &[u8] {
         let binary_end = self.tiles_sizes_prefix[tile_number as usize];
         let binary_start = tile_number
             .checked_sub(1)
@@ -393,12 +396,12 @@ impl Map {
     }
 
     // get number of ways inside given tile
-    pub fn tile_ways_number(&self, tile_number: u16) -> u8 {
+    pub fn tile_ways_number(&self, tile_number: u32) -> u8 {
         (self.tile_binary(tile_number).len() / 4) as u8
     }
 
     // loop on all ways inside given tile
-    pub fn tile_ways(&self, tile_number: u16) -> impl Iterator<Item = (CWayId, [Node; 2])> + '_ {
+    pub fn tile_ways(&self, tile_number: u32) -> impl Iterator<Item = (CWayId, [Node; 2])> + '_ {
         (0..(self.tile_ways_number(tile_number))).map(move |local_way_id| {
             let way_id = CWayId {
                 tile_number,
@@ -510,13 +513,31 @@ impl Map {
         {
             let tile_x = tile_number % self.grid_size.0;
             let tile_y = tile_number / self.grid_size.0;
+            let absolute_tile_x = tile_x + self.first_tile.0 as usize;
+            let absolute_tile_y = tile_y + self.first_tile.1 as usize;
+            let target =
+                if absolute_tile_y == 34251 && 4331 <= absolute_tile_x && absolute_tile_x <= 4335 {
+                    eprintln!(
+                    "hello from {absolute_tile_x} {absolute_tile_y} with tile id : {tile_number}"
+                );
+                    true
+                } else {
+                    false
+                };
             if kept_tiles.contains(&(tile_x, tile_y)) {
+                if target {
+                    eprintln!("we keep it");
+                }
                 new_binary_ways.extend(&self.binary_ways[tile_start..tile_end]);
                 kept_ways.extend((0..(tile_end - tile_start) / 2).map(|local_way_id| CWayId {
-                    tile_number: tile_number as u16,
+                    tile_number: tile_number as u32,
                     local_way_id: local_way_id as u8,
                 }));
                 current_end += tile_end - tile_start;
+            } else {
+                if target {
+                    eprintln!("we discard it");
+                }
             }
             new_tiles_sizes_prefix.push(current_end);
         }
@@ -584,13 +605,13 @@ fn deduplicate_ways(
             } else if current_count > 0 && new_count == 0 {
                 // new way end
                 let new_way_id = CWayId {
-                    tile_number: tile_id as u16,
+                    tile_number: tile_id as u32,
                     local_way_id: remaining_ways.len() as u8,
                 };
                 remaining_ways.push([current_start.unwrap(), point]);
                 for way_num in inner_ways.drain(..) {
                     let old_way_id = CWayId {
-                        tile_number: tile_id as u16,
+                        tile_number: tile_id as u32,
                         local_way_id: way_num as u8,
                     };
                     local_ids_changes.insert(old_way_id, new_way_id);
@@ -675,7 +696,7 @@ fn compress_tile(
         ids_changes.insert(
             *global_way_id,
             CWayId {
-                tile_number: tile_id as u16,
+                tile_number: tile_id as u32,
                 local_way_id: local_way_id as u8,
             },
         );
