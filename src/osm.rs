@@ -25,7 +25,7 @@ pub async fn request(polygon: &[Node], ski: bool) -> Result<String, Box<dyn std:
             out body;"
         )
     } else {
-        let wanted_ways = "way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"hightway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"]";
+        let wanted_ways = "way[\"highway\"][\"highway\"!=\"motorway\"][\"highway\"!=\"trunk\"][\"highway\"!=\"motorway_link\"][\"highway\"!=\"trunk_link\"][\"footway\"!=\"crossing\"][\"area\"!=\"yes\"]";
         format!(
             "(
         {wanted_ways}(poly:\"{polygon_string}\");
@@ -248,6 +248,12 @@ pub fn parse_osm_pbf<P: AsRef<Path>>(
                 }
             }
             osmio::obj_types::ArcOSMObj::Way(arc_way) => {
+                if arc_way.tag("highway").is_none_or(|highway_tag| {
+                    ["motorway", "motorway_link", "trunk", "trunk_link"].contains(&highway_tag)
+                }) || arc_way.tag("area") == Some("yes")
+                {
+                    continue;
+                }
                 let nodes = arc_way.nodes();
                 if !nodes.is_empty() {
                     ways.insert(
